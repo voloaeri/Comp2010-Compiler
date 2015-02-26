@@ -1,0 +1,142 @@
+import java_cup.runtime.*;
+
+%%
+
+
+%class Lexer
+%unicode
+%cup
+%line
+%column
+%{
+StringBuffer string = new StringBuffer();
+
+  private Symbol symbol(int type) {
+    return new Symbol(type, yyline, yycolumn);
+  }
+  private Symbol symbol(int type, Object value) {
+    return new Symbol(type, yyline, yycolumn, value);
+}
+
+  public void reportError(String message){
+  	System.out.println("Error at line " + (yyline+1) +": " + message);
+  }
+
+  
+  
+%}
+
+
+LineTerminator = \r|\n|\r\n
+InputCharacter = [^\r\n]
+WhiteSpace     = {LineTerminator} | [ \t\f]
+
+/* comments */
+Comment = {TraditionalComment} | {EndOfLineComment} 
+
+TraditionalComment   = "/*" [^*] ~"*/" | "/*" "*"+ "/"
+EndOfLineComment     = "//" {InputCharacter}* {LineTerminator}
+
+Identifier = [:jletter:] [:jletterdigit:]*
+
+boolean = true|false
+
+type = bool|int|float|char|string|list|dict
+
+DecIntegerLiteral = 0 | -?[1-9][0-9]*
+float = -?[0-9]+\.[0-9]+
+char = \'[a-z0-9A-Z]\'
+
+%state STRING
+
+
+%%
+
+
+/* keywords */
+<YYINITIAL> {
+	
+
+	/* data types */
+	{type}							{return symbol(sym.TYPE, yytext());}	
+
+	/* operators */
+	"="								{ return symbol(sym.EQ); }
+	"=="							{ return symbol(sym.EQEQ); }
+	"<"								{ return symbol(sym.LESSTHAN); }
+	">"								{ return symbol(sym.GREATERTHAN); }
+	"<="							{ return symbol(sym.LESSEQ); }
+	">="							{ return symbol(sym.GREATEREQ); }
+	"!="							{ return symbol(sym.NOTEQ); }
+
+	"+"								{ return symbol(sym.PLUS); }
+	"-"								{ return symbol(sym.MINUS); }
+	"*"								{ return symbol(sym.TIMES); }
+	"/"								{ return symbol(sym.DIVIDE); }
+	"^"								{ return symbol(sym.POWER); }
+
+	"!"								{ return symbol(sym.LOGICNOT); }
+	"&&"							{ return symbol(sym.LOGICAND); }
+
+	"in"							{ return symbol(sym.IN); }
+	"len"							{ return symbol(sym.LENGTH); }
+	"::"							{ return symbol(sym.CONCAT); }
+
+	/* other tokens */
+	"("								{ return symbol(sym.LPAREN); }
+	")"								{ return symbol(sym.RPAREN); }
+	"{"								{ return symbol(sym.LBRACE); }
+	"}"								{ return symbol(sym.RBRACE); }
+	"["								{ return symbol(sym.LBRACKET); }
+	"]"								{ return symbol(sym.RBRACKET); }
+	","								{ return symbol(sym.COMMA); }
+	"|"								{ return symbol(sym.PIPE); }
+	":"								{ return symbol(sym.COLON); }
+	";"								{ return symbol(sym.SEMICOLON); }
+
+	/* keywords */
+	"read"							{ return symbol(sym.READ); }
+	"print"							{ return symbol(sym.PRINT); }
+	"if"							{ return symbol(sym.IF); }
+	"else"							{ return symbol(sym.ELSE); }
+	"while"							{ return symbol(sym.WHILE); }
+	"do"							{ return symbol(sym.DO); }
+	"foreach"						{ return symbol(sym.FOREACH); }
+	"return"						{ return symbol(sym.RETURN); }
+	"def"							{ return symbol(sym.FUNCDEF); }
+	"tdef"							{ return symbol(sym.TYPEDEF); }
+	"void"							{ return symbol(sym.VOID); }
+	"main"							{ return symbol(sym.MAIN); }
+
+	/* literals */
+	{DecIntegerLiteral}				{ return symbol(sym.INTEGER_LITERAL); }
+	\"								{ string.setLength(0); yybegin(STRING); }
+	{char}							{ return symbol(sym.CHAR_LITERAL, yytext().charAt(1));	}
+	{boolean}						{ return symbol(sym.BOOL_LITERAL, new Boolean(yytext()));}
+	{float}							{ return symbol(sym.FLOAT_LITERAL, new Float(yytext())); }
+
+	/* identifiers */ 
+	{Identifier}					{ return symbol(sym.IDENTIFIER); }
+
+	/* comments */
+	{Comment}						{ /* ignore */ }
+
+	/* whitespace */
+	{WhiteSpace}					{ /* ignore */ }
+}
+
+<STRING> {
+	\"								{ yybegin(YYINITIAL); 
+	return symbol(sym.STRING_LITERAL, 
+	string.toString()); }
+	[^\n\r\"\\]+					{ string.append( yytext() ); }
+	\\t 							{ string.append('\t'); }
+	\\n 							{ string.append('\n'); }
+
+	\\r 							{ string.append('\r'); }
+	\\\"							{ string.append('\"'); }
+	\\								{ string.append('\\'); }
+}
+
+/* error fallback */
+[^]									{ reportError(yytext()); }

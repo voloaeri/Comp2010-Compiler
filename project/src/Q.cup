@@ -1,0 +1,237 @@
+import java_cup.runtime.*;
+
+parser code {:
+
+Lexer qLex;
+
+public void setLexer(Lexer qLex){
+	this.qLex = qLex;
+}
+
+public void report_error(String message, Object info){
+	qLex.reportError(message);
+}
+
+
+:};
+
+
+terminal		String TYPE, IDENTIFIER;
+
+/* literals */
+terminal		String STRING_LITERAL;
+terminal		Boolean BOOL_LITERAL;
+terminal		Character CHAR_LITERAL;
+terminal		Integer INTEGER_LITERAL;
+terminal		Float FLOAT_LITERAL;
+
+/* operators */
+terminal		EQ, EQEQ, LESSTHAN, GREATERTHAN, LESSEQ, GREATEREQ, NOTEQ;
+terminal		PLUS, MINUS, TIMES, DIVIDE, POWER;
+terminal		LOGICNOT, LOGICAND;
+terminal		IN, LENGTH, CONCAT;
+
+/* other tokens */
+terminal		LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, COMMA, DOT, PIPE, COLON, SEMICOLON;
+
+/* keywords */
+terminal		MAIN, READ, PRINT, IF, ELSE, WHILE, DO, FOREACH, RETURN, FUNCDEF, TYPEDEF, VOID;
+
+/* program */
+non terminal	program;
+
+/* global declarations */
+non terminal	global_declaration_list, main_declaration, fdef, tdef, var_declaration, optional_parameter_list, key_value_pair;
+
+non terminal	parameter_list, return_function_statement_list, void_function_statement_list, tdef_field_list, key_value_sequence;
+
+non terminal	type_name, tdef_field, function_statement_list, function_statement, input_statement, output_statement, function_call;
+
+non terminal	control_flow_statements, if_else_statement, while_statement, foreach_statement, optional_key_value_sequence;
+
+non terminal	variable, expression, dict_variable, dot_variable, sequence, optional_sequence, literal, control_flow_statement_block;
+
+
+precedence nonassoc EQ;
+precedence nonassoc LOGICNOT;
+precedence left LOGICAND;
+precedence left EQEQ, NOTEQ, LESSTHAN, LESSEQ, GREATERTHAN, GREATEREQ, IN;
+precedence left PLUS, MINUS;
+precedence left TIMES, DIVIDE;
+precedence right POWER;
+precedence left LPAREN, RPAREN;
+precedence left ELSE, CONCAT;
+precedence right IN;
+
+start with program;
+
+//parser.report_error(message, object);
+
+program ::= global_declaration_list main_declaration global_declaration_list {: System.out.println("parsing successful"); :}
+			|global_declaration_list error global_declaration_list {: parser.report_error("No main declaration found.", null); :}
+			;
+
+global_declaration_list ::= global_declaration_list fdef
+							| global_declaration_list tdef
+							| global_declaration_list var_declaration
+							|
+							;
+
+main_declaration ::= VOID MAIN LBRACE void_function_statement_list RBRACE
+					| VOID MAIN error RBRACE {: parser.report_error("Invalid main declaration.", null); :}
+					;
+
+
+
+tdef ::= TYPEDEF IDENTIFIER COLON tdef_field_list SEMICOLON
+		|TYPEDEF error SEMICOLON {: parser.report_error("Invalid type definition.", null); :}
+		;
+
+tdef_field_list ::= tdef_field
+					| tdef_field_list COMMA tdef_field
+					;
+
+tdef_field ::= IDENTIFIER COLON type_name;
+
+type_name ::= TYPE
+				| IDENTIFIER
+				;
+
+
+
+var_declaration ::= type_name IDENTIFIER SEMICOLON
+					|type_name IDENTIFIER EQ sequence SEMICOLON
+					|type_name IDENTIFIER EQ LBRACKET PIPE optional_key_value_sequence PIPE RBRACKET
+					|type_name error SEMICOLON {: parser.report_error("Invalid variable declaration.", null); :}
+					;
+
+
+
+fdef ::= FUNCDEF type_name IDENTIFIER LPAREN optional_parameter_list RPAREN LBRACE return_function_statement_list RBRACE
+		| FUNCDEF VOID IDENTIFIER LPAREN optional_parameter_list RPAREN LBRACE void_function_statement_list RBRACE
+		| FUNCDEF error RBRACE {: parser.report_error("Invalid function definition.", null); :}
+		;
+
+optional_parameter_list ::= parameter_list
+							|
+							;
+
+parameter_list ::= parameter_list COMMA type_name IDENTIFIER
+					|type_name IDENTIFIER
+					;
+
+return_function_statement_list ::= function_statement_list RETURN expression SEMICOLON;
+
+void_function_statement_list ::= function_statement_list RETURN SEMICOLON
+							| function_statement_list
+							;
+
+function_statement_list ::= function_statement_list var_declaration
+							| function_statement_list function_statement
+							|
+							;
+
+function_statement ::= input_statement
+						|output_statement
+						|control_flow_statements
+						|expression SEMICOLON
+						;
+
+input_statement ::= READ variable SEMICOLON
+					| READ error SEMICOLON {: parser.report_error("Invalid read statement.", null); :}
+					;
+
+output_statement ::= PRINT sequence SEMICOLON
+					|PRINT error SEMICOLON {: parser.report_error("Invalid print statement.", null); :}
+					;
+
+function_call ::= IDENTIFIER LPAREN optional_sequence RPAREN SEMICOLON;
+
+optional_sequence ::= sequence
+						|
+						;
+
+sequence ::= sequence COMMA expression
+			|expression
+			;
+
+optional_key_value_sequence ::= key_value_sequence
+								|
+								;
+
+key_value_sequence ::= key_value_sequence COMMA key_value_pair
+						| key_value_pair
+						;
+
+key_value_pair ::= expression COLON expression;
+
+control_flow_statements ::= if_else_statement
+							|while_statement
+							|foreach_statement
+							;
+
+if_else_statement ::= IF LPAREN expression RPAREN control_flow_statement_block ELSE control_flow_statement_block
+					| IF error RBRACE {: parser.report_error("Invalid if statement.", null); :}
+					;
+
+while_statement ::= WHILE LPAREN expression RPAREN DO control_flow_statement_block
+					|WHILE error RBRACE {: parser.report_error("Invalid while statement.", null); :}
+					;
+
+foreach_statement ::= FOREACH LPAREN variable COLON IDENTIFIER RPAREN control_flow_statement_block
+					|FOREACH error RBRACE {: parser.report_error("Invalid foreach statement.", null); :}
+					;
+
+control_flow_statement_block ::= LBRACE function_statement_list RBRACE;
+
+//assignment_statement ::= variable EQ expression SEMICOLON;
+
+expression ::= IDENTIFIER
+				|literal
+				|function_call
+				|IDENTIFIER DOT IDENTIFIER
+				|expression EQ expression
+				|expression CONCAT expression
+				|LENGTH LPAREN expression RPAREN
+				|IDENTIFIER LBRACKET expression RBRACKET
+				|IDENTIFIER LBRACKET expression COLON expression RBRACKET
+				|IDENTIFIER LBRACKET COLON expression RBRACKET
+				|IDENTIFIER LBRACKET expression COLON RBRACKET
+				|expression PLUS expression
+				|expression MINUS expression
+				|expression TIMES expression
+				|expression DIVIDE expression
+				|expression POWER expression
+				|expression EQEQ expression
+				|expression NOTEQ expression
+				|expression LESSTHAN expression
+				|expression LESSEQ expression
+				|expression GREATERTHAN expression
+				|expression GREATEREQ expression
+				|expression LOGICAND expression
+				|LOGICNOT expression
+				|expression IN expression
+				|LPAREN expression RPAREN
+				|LBRACKET PIPE optional_key_value_sequence PIPE RBRACKET
+				|LBRACKET sequence RBRACKET
+				;
+
+
+literal ::= STRING_LITERAL
+			|BOOL_LITERAL
+			|INTEGER_LITERAL
+			|FLOAT_LITERAL
+			|CHAR_LITERAL
+			;
+
+variable ::= dot_variable
+			|dict_variable
+			|IDENTIFIER
+			;
+
+dot_variable ::= variable DOT IDENTIFIER;
+
+dict_variable ::= variable LBRACKET variable RBRACKET
+				| variable LBRACKET literal RBRACKET
+				;
+

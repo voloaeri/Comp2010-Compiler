@@ -1,0 +1,342 @@
+import java_cup.runtime.*;
+
+parser code {:
+
+Lexer lexer;
+boolean syntaxErrors = false;
+
+  public void setLexer(Lexer lex){
+    this.lexer = lex;
+  }
+
+  public void syntax_error(Symbol current_token) {
+    this.syntaxErrors = true;
+    report_error(
+      "Syntax error at line " + (current_token.left+1) + ", column "
+        + current_token.right, null
+    );
+  }
+:};
+
+/* -- Terminals -- */
+
+/* Misc */
+terminal SEMI, LPAREN, RPAREN, LBRACE, RBRACE, LBRACK, RBRACK, RANGLE, COLON, COMMA, CONCAT_OP;
+
+
+/* Constants */
+terminal String    IDENT;
+terminal Character CHAR_LITERAL;
+terminal String	   STRING_LITERAL;
+terminal Boolean   BOOL_LITERAL;
+terminal Integer   INT_LITERAL;
+terminal Integer   NEG_INT_LITERAL;
+terminal Float	   FLOAT_LITERAL;
+terminal Float	   NEG_FLOAT_LITERAL;
+terminal String    RATIONAL_LITERAL;
+terminal String    NEG_RATIONAL_LITERAL;
+
+/* Types */
+terminal Dictionary DICT;
+terminal Sequence SEQ;
+terminal TYPE;
+
+/* Keywords */
+terminal RETURN, PRINT, READ;
+terminal IF, THEN, ELSE, FI;
+terminal WHILE, FORALL, DO, OD;
+terminal TDEF, FDEF, ALIAS;
+terminal MAIN;
+terminal LEN;
+
+/* Operators */
+terminal ASSIGN_OP, PLUS_OP, MINUS_OP, MULT_OP, DIV_OP, POW_OP, NOT_OP, AND_OP, OR_OP, IMPL_OP, LT_OP, LTE_OP, EQ_OP, NEQ_OP, IN_OP, DOT_OP;
+
+/*** -- Non terminals -- ***/
+
+/* Misc */
+non terminal Object	body, block, main_def, type, opt_type, literal, empty;
+
+/* Declarations */
+non terminal Object	decls, opt_decls, decl_list, opt_decl_list, decl, var_decl, tdef_decl, fdef_decl, alias_decl;
+non terminal Object dict_type, type_list, dict_def, opt_dict_item_list, dict_item_list, dict_item; 
+non terminal Object seq_type, seq_def, opt_seq_item_list, seq_item_list;
+
+/* Expressions */
+non terminal Object	expr, opt_expr, expr_list, opt_expr_list;
+non terminal slicing, slice, indexing;
+non terminal concat_list, concat;
+non terminal dot;
+
+/* Statements */
+non terminal Object	stmts, stmt, opt_stmts;
+non terminal Object	input, output, assign, opt_assign, fcall, cond, opt_else, while_loop, forall_loop, return_stmt;
+
+/* Precedence */
+precedence left	    COMMA;
+precedence nonassoc ASSIGN_OP;
+precedence left	    OR_OP;
+precedence left	    AND_OP;
+precedence left	    IMPL_OP;
+precedence left	    EQ_OP, NEQ_OP;
+precedence left	    LT_OP, LTE_OP;
+precedence left	    PLUS_OP, MINUS_OP;
+precedence left	    MULT_OP, DIV_OP;
+precedence left     POW_OP;
+precedence left	    DO, OD;
+precedence left	    IF, FI;
+precedence left     THEN;
+precedence left	    ELSE;
+precedence right    NOT_OP;
+precedence right    IN_OP;
+precedence left	    CONCAT_OP, DOT_OP;
+precedence left	    LPAREN, RPAREN, LBRACE, RBRACE, LBRACK, RBRACK, RANGLE, DO, OD, IF, FI;
+precedence nonassoc IDENT, FDEF, TDEF, ALIAS, RETURN, PRINT, READ, WHILE, FORALL, MAIN ;
+
+start with body;
+
+/*** -- Rules Section -- ***/
+
+body ::=    opt_decls main_def opt_decls
+     	    ;
+
+opt_decls ::=   decls
+	      | empty
+	       ;
+
+block ::=   LBRACE decls stmts RBRACE
+      	  | LBRACE stmts RBRACE
+	  | LBRACE decls RBRACE
+	    ;
+/*
+opt_stmts ::=    stmts
+	       | empty
+	       	 ;
+*/
+
+main_def ::=	MAIN block
+	  	;
+
+/* -- Declarations -- */
+
+decls ::=   decls decl
+      	  | decl
+	    ;
+
+decl ::=   var_decl SEMI 
+     	 | tdef_decl 
+	 | fdef_decl 
+	 | alias_decl
+	   ;
+
+/* identifier:type; */
+var_decl ::= IDENT COLON type opt_assign
+	     ;
+
+opt_assign ::=   assign
+	       | empty	       
+	       	 ;
+
+/* tdef type_id {declaration_list}; */
+tdef_decl ::=	TDEF IDENT LBRACE decl_list RBRACE SEMI
+	  	;
+
+
+/* fdef name (formal_param_list) {body} : returnType;
+   fdef name (formal_param_list) {body} */
+fdef_decl ::=	FDEF IDENT LPAREN opt_decl_list RPAREN block opt_type SEMI
+	      	;
+
+opt_type ::=    COLON type
+	      | empty
+	      	;
+
+opt_decl_list ::=    decl_list
+	      	   | empty
+		     ;
+
+/* a:int, b:bool, c:char */
+decl_list ::=	decl_list COMMA var_decl
+	      | var_decl
+	      	;
+
+
+/* alias seq<char> string; */
+alias_decl ::=	ALIAS type IDENT SEMI
+	   	;
+
+type ::=   TYPE
+     	 | IDENT
+	 | dict_type
+	 | seq_type
+	   ;
+
+dict_type ::= DICT LT_OP type_list RANGLE;
+
+type_list ::=   type_list COMMA type
+	      | type
+	      	;
+
+seq_type ::= SEQ LT_OP type RANGLE;
+ 
+literal ::=   BOOL_LITERAL
+     	    | INT_LITERAL   
+	    | NEG_INT_LITERAL
+	    | FLOAT_LITERAL
+	    | NEG_FLOAT_LITERAL
+	    | CHAR_LITERAL
+	    | STRING_LITERAL
+	    | RATIONAL_LITERAL
+	    | NEG_RATIONAL_LITERAL
+	   ;  
+
+/* -- Expressions -- */
+expr_list ::=    expr COMMA expr_list
+	       | expr
+	         ;
+
+expr ::=   LPAREN expr RPAREN
+     	 | expr PLUS_OP expr
+    	 | expr MINUS_OP expr
+	 | expr MULT_OP expr
+	 | expr DIV_OP expr
+	 | expr POW_OP expr
+     	 | NOT_OP expr
+	 | expr AND_OP expr
+	 | expr OR_OP expr
+	 | expr IMPL_OP expr
+	 | expr EQ_OP expr
+	 | expr NEQ_OP expr
+	 | expr LT_OP expr
+	 | expr LTE_OP expr
+	 | expr IN_OP expr
+	 | expr NEG_INT_LITERAL /*e.g.: abc-2*/  
+	 | expr NEG_FLOAT_LITERAL /*e.g.: abc-2.3*/
+	 | expr NEG_RATIONAL_LITERAL /*e.g.: abc-2.3*/
+	 | fcall 
+	 | literal
+	 | IDENT
+	 | LEN LPAREN expr RPAREN
+	 | indexing
+	 | dict_def
+	 | seq_def
+	 | slicing
+	 | concat_list
+	 | dot
+	   ;
+
+/* -- Statements -- */
+stmts ::=    stmts stmt
+      	   | stmt
+	     ;
+
+stmt ::=    IDENT assign SEMI
+     	  | dot assign SEMI
+     	  | input
+	  | output
+	  | fcall SEMI
+	  | cond
+	  | while_loop
+	  | forall_loop
+	  | return_stmt
+	  | indexing assign SEMI
+	  | slicing assign SEMI
+	    ;
+
+/* var := expr; */
+assign ::=   ASSIGN_OP expr_list
+	     ;
+			
+dict_def ::=   LBRACE opt_dict_item_list RBRACE
+	     | LBRACE  RBRACE
+	       ;
+
+opt_dict_item_list ::= dict_item_list 
+			|	empty
+				;
+
+dict_item_list ::= dict_item_list COMMA dict_item
+			|	dict_item
+				;  
+
+dict_item ::= expr COLON expr;
+
+seq_def ::= LBRACK opt_seq_item_list RBRACK;
+
+opt_seq_item_list ::= seq_item_list
+		|	empty
+			;
+			
+seq_item_list ::= seq_item_list COMMA expr
+		|	expr
+			;
+	
+indexing ::= IDENT seq_def 
+			;
+
+/* read var; */
+input ::= READ IDENT SEMI
+      	  ;
+
+/* print expression; */
+output ::= PRINT expr SEMI
+       	   ;
+
+/* functionID (expression_list); */
+fcall ::=   IDENT LPAREN opt_expr_list RPAREN
+      	    ;
+
+opt_expr_list ::=    expr_list
+	      	   | empty
+		     ;
+
+slicing ::= IDENT slice 
+			;
+			
+slice ::= LBRACK empty COLON expr RBRACK
+		| LBRACK expr COLON empty RBRACK
+		| LBRACK expr COLON expr RBRACK
+			;
+
+concat_list ::= concat_list CONCAT_OP expr
+		|	concat
+			;
+			
+concat ::= expr CONCAT_OP expr;
+
+dot ::= IDENT DOT_OP expr;
+
+/* if (expression) then body fi 
+   if (expression) then body else body fi */
+cond ::=    IF LPAREN expr RPAREN THEN decls stmts opt_else FI
+     	  | IF LPAREN expr RPAREN THEN stmts opt_else FI
+	  | IF LPAREN expr RPAREN THEN decls opt_else FI
+	    ;
+
+opt_else ::=    ELSE decls stmts
+	      | ELSE stmts
+	      | ELSE decls
+	      | empty
+	      	;
+
+/* while (expression) do body od */
+while_loop ::=    WHILE LPAREN expr RPAREN DO decls stmts OD
+	   	| WHILE LPAREN expr RPAREN DO stmts OD
+		| WHILE LPAREN expr RPAREN DO decls OD
+	   	  ;
+
+/* forall(item in iterable) do body od */
+forall_loop ::=	  FORALL LPAREN expr RPAREN DO decls stmts OD
+	    	| FORALL LPAREN expr RPAREN DO stmts OD
+		| FORALL LPAREN expr RPAREN DO decls OD
+	    	  ;
+
+/* return expression; */
+return_stmt ::=	  RETURN opt_expr SEMI	
+	    	  ;
+
+opt_expr ::=   expr
+	     | empty
+	       ;
+
+empty ::=    ;
