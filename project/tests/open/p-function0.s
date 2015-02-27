@@ -1,12 +1,3 @@
-fdef sum(i:int, j:int) {
-     return i + j;
-} : int;
-
-fdef sum(i:float, j:float) {
-     return i + j;
-} : float;
-
-
 main {
 
   s1:int := sum(-10,20);
@@ -18,4 +9,15 @@ main {
   fi
 
   return;
-}
+};
+
+fdef sum(i:int, j:int) {
+     return i + j;
+} : int;
+
+fdef sum(i:float, j:float) {
+     return i + j;
+} : float;
+
+
+

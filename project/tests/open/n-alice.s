@@ -18,4 +18,8 @@ main {
   od
 
   return;
-}
+};
+
+fdef alice () {
+  return 5;
+} : int;
