@@ -23,9 +23,12 @@ import org.apache.bcel.generic.Instruction;
 import org.apache.bcel.classfile.Method;
 import org.apache.bcel.generic.ArithmeticInstruction;
 import org.apache.bcel.generic.MethodGen;
+import org.apache.bcel.generic.Type;
+import org.apache.bcel.Constants;
 
 public class ConstantFolder
 {
+	
 	ClassParser parser = null;
 	ClassGen gen = null;
 
@@ -41,6 +44,23 @@ public class ConstantFolder
 		} catch(IOException e){
 			e.printStackTrace();
 		}
+	}
+	
+	enum OperationType {
+		ADD, SUB, DIV, MUL, NEG, REM, AND, OR, SHL, SHR, USHR, XOR, NONE
+	}
+	
+	private OperationType getType(Instruction instr) {
+		switch (instr.getOpcode()) {
+			case Constants.IADD: //Fall through
+			case Constants.LADD: //Fall through
+			case Constants.FADD: //Fall through
+			case Constants.DADD: 
+				return OperationType.ADD;
+			default:
+				break;
+		};
+		return OperationType.NONE;
 	}
 	
 	private void simpleFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) {
@@ -68,9 +88,11 @@ public class ConstantFolder
 				System.out.println(ldc.getOpcode());
 			}
 			if (instr instanceof ArithmeticInstruction) {
+				
 				System.out.println(instr.toString());
 				ArithmeticInstruction arith = (ArithmeticInstruction) instr;
 				System.out.println(arith.getType(cpgen));
+				System.out.println(getType(arith));
 				System.out.println(arith.produceStack(cpgen));
 			}
 		}
