@@ -36,7 +36,7 @@ public class Main extends SimpleFileVisitor<Path> {
     }
 
     public static void main(String args[]) throws IOException {
-        Main main = new Main();
+        Main main = new Main();        
         main.parseArguments(args);
         Files.walkFileTree(Paths.get(main.inputRoot), main);
     }
@@ -51,7 +51,9 @@ public class Main extends SimpleFileVisitor<Path> {
 
     @Override
     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-        if(file.toString().endsWith(".class")){
+        //if(file.toString().endsWith(".class")){
+        if(file.toString().endsWith("SimpleFolding.class")){
+            //System.out.println(file.toString());
             ConstantFolder cf = new ConstantFolder(file.toString());
             cf.optimize();
 
