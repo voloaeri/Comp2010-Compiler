@@ -21,7 +21,7 @@ import org.apache.bcel.generic.InstructionHandle;
 import org.apache.bcel.generic.InstructionList;
 import org.apache.bcel.generic.Instruction;
 import org.apache.bcel.classfile.Method;
-
+import org.apache.bcel.generic.ArithmeticInstruction;
 import org.apache.bcel.generic.MethodGen;
 
 public class ConstantFolder
@@ -57,13 +57,21 @@ public class ConstantFolder
 		// get the constants in the pool
 		
 		Constant[] constants = cp.getConstantPool();
-		Deque<Constant> stack = new ArrayDeque<Constant>();
+		Deque<Object> stack = new ArrayDeque<Object>();
 		for (InstructionHandle handle : instList.getInstructionHandles()) 
 		{
 			Instruction instr = handle.getInstruction();
+
 			if (instr instanceof LDC) {
-				//stack.addFirst()
-				instr.toString();
+				LDC ldc = (LDC) instr;
+				stack.addFirst(ldc.getValue(cpgen));
+				System.out.println(ldc.getOpcode());
+			}
+			if (instr instanceof ArithmeticInstruction) {
+				System.out.println(instr.toString());
+				ArithmeticInstruction arith = (ArithmeticInstruction) instr;
+				System.out.println(arith.getType(cpgen));
+				System.out.println(arith.produceStack(cpgen));
 			}
 		}
 

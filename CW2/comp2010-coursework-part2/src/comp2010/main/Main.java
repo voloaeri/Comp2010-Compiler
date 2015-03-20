@@ -55,7 +55,7 @@ public class Main extends SimpleFileVisitor<Path> {
         if(file.toString().endsWith("SimpleFolding.class")){
             //System.out.println(file.toString());
             ConstantFolder cf = new ConstantFolder(file.toString());
-            cf.optimize();
+            //cf.optimize();
 
             Path rel = Paths.get(inputRoot).relativize(file);
 
