@@ -44,41 +44,7 @@ public class ConstantFolder
 	}
 	
 	private void simpleFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) {
-		// Get the Code of the method, which is a collection of bytecode instructions
-		Code methodCode = method.getCode();
-		//System.out.println(methodCode.toString());
-		InstructionList instList = new InstructionList(methodCode.getCode());
 
-		// Initialise a method generator with the original method as the baseline	
-		MethodGen methodGen = new MethodGen(method.getAccessFlags(), method.getReturnType(), method.getArgumentTypes(), null, method.getName(), gen.getClassName(), instList, cpgen);
-		
-		// get the current constant pool
-		ConstantPool cp = cpgen.getConstantPool();
-		// get the constants in the pool
-		
-		Constant[] constants = cp.getConstantPool();
-		Deque<Constant> stack = new ArrayDeque<Constant>();
-		for (InstructionHandle handle : instList.getInstructionHandles()) 
-		{
-			Instruction instr = handle.getInstruction();
-			if (instr instanceof LDC) {
-				//stack.addFirst()
-				instr.toString();
-			}
-		}
-
-		// setPositions(true) checks whether jump handles 
-		// are all within the current method
-		instList.setPositions(true);
-
-		// set max stack/local
-		methodGen.setMaxStack();
-		methodGen.setMaxLocals();
-
-		// generate the new method with replaced iconst
-		Method newMethod = methodGen.getMethod();
-		// replace the method in the original class
-		gen.replaceMethod(method, newMethod);
 	}
 
 	private void constantFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) {
