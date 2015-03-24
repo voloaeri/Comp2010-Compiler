@@ -16,12 +16,15 @@ import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.generic.ConstantPoolGen;
 import org.apache.bcel.classfile.Code;
 import org.apache.bcel.generic.LDC;
+import org.apache.bcel.generic.LDC2_W;
+import org.apache.bcel.generic.LDC_W;
 import org.apache.bcel.classfile.ConstantString;
 import org.apache.bcel.classfile.ConstantUtf8;
 import org.apache.bcel.generic.InstructionHandle;
 import org.apache.bcel.generic.InstructionList;
 import org.apache.bcel.generic.Instruction;
 import org.apache.bcel.classfile.Method;
+import org.apache.bcel.generic.ConversionInstruction;
 import org.apache.bcel.generic.ArithmeticInstruction;
 import org.apache.bcel.generic.MethodGen;
 import org.apache.bcel.generic.Type;
@@ -84,10 +87,8 @@ public class ConstantFolder
 			case Constants.T_DOUBLE:
 				return new Double(((Number)a).doubleValue()+((Number)b).doubleValue());
 			default:
-				break;
-		};
-
-		return null;
+				return null;
+		}
 	}
 
 	private Object calc(ArithmeticInstruction instr, ConstantPoolGen cpgen, Object a, Object b) 
@@ -97,11 +98,39 @@ public class ConstantFolder
 			case ADD:
 				return this.add(instr.getType(cpgen), a,b);
 			default:
-				break;
-		};
+				return null;
+		}
 
-		return null;
+	}
 
+	private Object createObject(Type t, Object var) {
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)var).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)var).longValue());			
+			case Constants.T_FLOAT:
+				return new Float(((Number)var).floatValue());
+			case Constants.T_DOUBLE:
+				return new Double(((Number)var).doubleValue());
+			default:
+				return null;
+		}
+	}
+
+	private void removeHandle(InstructionList l, InstructionHandle h)
+	{
+		try
+		{
+			System.out.println("Delete "+h);
+			l.delete(h);
+			System.out.println("Done");
+		}
+		catch (TargetLostException e)
+		{
+			e.printStackTrace();
+		}
 	}
 
 	private void simpleFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
@@ -129,10 +158,29 @@ public class ConstantFolder
 			{
 				LDC ldc = (LDC) instr;
 				remove = true; // start adding all following instructions to remove list
+				
 				removeHandles.add(handle);
 				constantStack.addFirst(ldc.getValue(cpgen));
-			} 
-			else if (instr instanceof ArithmeticInstruction) 
+				removeHandle(instList, handle);
+			}
+			if (instr instanceof LDC2_W) 
+			{
+				LDC2_W ldc2w = (LDC2_W) instr;
+				remove = true; // start adding all following instructions to remove list
+				removeHandles.add(handle);
+				constantStack.addFirst(ldc2w.getValue(cpgen));
+				removeHandle(instList, handle);
+			}
+			else if (remove && instr instanceof ConversionInstruction) {
+				removeHandles.add(handle);
+				Object var = constantStack.pop();
+				ConversionInstruction convInstr = (ConversionInstruction) instr;
+				var = createObject(convInstr.getType(cpgen), var);
+				constantStack.addFirst(var);
+				removeHandle(instList, handle);
+			}
+
+			else if (remove && instr instanceof ArithmeticInstruction) 
 			{
 				remove = false; // Found an operation ==> stop removing
 
@@ -146,25 +194,31 @@ public class ConstantFolder
 				Object result = calc(arith, cpgen, a, b);
 				
 				int index = -1;
+				Instruction newInstr;
 				switch(arith.getType(cpgen).getType()) 
 				{
 					case Constants.T_INT:
 						index = cpgen.addInteger(((Integer)result).intValue());
+						newInstr = new LDC(index);
 						break;
 					case Constants.T_LONG:
 						index = cpgen.addLong(((Long)result).longValue());			
+						newInstr = new LDC2_W(index);
 						break;
 					case Constants.T_FLOAT:
 						index = cpgen.addFloat(((Float)result).floatValue());
+						newInstr = new LDC(index);
 						break;
 					case Constants.T_DOUBLE:
 						index = cpgen.addDouble(((Double)result).doubleValue());
+						newInstr = new LDC_W(index);
 						break;
 					default:
-						break;
+						newInstr = null;
 				};
 
-				instList.insert(handle, new LDC(index));
+				// Add result to instruction list
+				instList.insert(handle, newInstr);
 				
 				//System.out.println(result);
 
@@ -174,26 +228,24 @@ public class ConstantFolder
 			else 
 			{
 				if (remove) 
-					removeHandles.add(handle);
+					removeHandle(instList, handle);
 			}
 		}
 
-		// Remove deprecated instructions
-		for (InstructionHandle h: removeHandles) 
-		{
-			// delete the old one
-			try
-			{
-				// delete the old one
-				instList.delete(h);
-
-			}
-			catch (TargetLostException e)
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
+		// // Remove unused instructions
+		// for (InstructionHandle h: removeHandles) 
+		// {
+		// 	try
+		// 	{
+		// 		System.out.println("Delete "+h);
+		// 		instList.delete(h);
+		// 		System.out.println("Done");
+		// 	}
+		// 	catch (TargetLostException e)
+		// 	{
+		// 		e.printStackTrace();
+		// 	}
+		// }
 
 		// setPositions(true) checks whether jump handles 
 		// are all within the current method
