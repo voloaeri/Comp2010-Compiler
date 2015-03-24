@@ -155,6 +155,128 @@ public class ConstantFolder
 		}
 	}
 
+	private Object sub(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()-((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()-((Number)b).longValue());			
+			case Constants.T_FLOAT:
+				return new Float(((Number)a).floatValue()-((Number)b).floatValue());
+			case Constants.T_DOUBLE:
+				return new Double(((Number)a).doubleValue()-((Number)b).doubleValue());
+			default:
+				return null;
+		}
+	}
+	private Object mul(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()*((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()*((Number)b).longValue());			
+			case Constants.T_FLOAT:
+				return new Float(((Number)a).floatValue()*((Number)b).floatValue());
+			case Constants.T_DOUBLE:
+				return new Double(((Number)a).doubleValue()*((Number)b).doubleValue());
+			default:
+				return null;
+		}
+	}
+	private Object div(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()/((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()/((Number)b).longValue());			
+			case Constants.T_FLOAT:
+				return new Float(((Number)a).floatValue()/((Number)b).floatValue());
+			case Constants.T_DOUBLE:
+				return new Double(((Number)a).doubleValue()/((Number)b).doubleValue());
+			default:
+				return null;
+		}
+	}
+
+	private Object neg(Type t, Object a) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(-((Number)a).intValue());
+			case Constants.T_LONG:
+				return new Long(-((Number)a).longValue());			
+			case Constants.T_FLOAT:
+				return new Float(-((Number)a).floatValue());
+			case Constants.T_DOUBLE:
+				return new Double(-((Number)a).doubleValue());
+			default:
+				return null;
+		}
+	}
+
+	private Object rem(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()%((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()%((Number)b).longValue());			
+			case Constants.T_FLOAT:
+				return new Float(((Number)a).floatValue()%((Number)b).floatValue());
+			case Constants.T_DOUBLE:
+				return new Double(((Number)a).doubleValue()%((Number)b).doubleValue());
+			default:
+				return null;
+		}
+	}
+
+	private Object shl(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()<<((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()<<((Number)b).longValue());	
+			default:
+				return null;
+		}
+	}
+
+	private Object shr(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()>>((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()>>((Number)b).longValue());	
+			default:
+				return null;
+		}
+	}
+
+	private Object ushr(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()>>>((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()>>>((Number)b).longValue());	
+			default:
+				return null;
+		}
+	}
+
 	private Object logic(OperationType t, Object a, Object b)
 	{
 		switch(t) {
@@ -169,6 +291,18 @@ public class ConstantFolder
 		}
 	}
 
+	private Object cmp(Instruction instr, Object a, Object b)
+	{
+		if (instr instanceof FCMPG || instr instanceof DCMPG)
+			return new Boolean((Boolean)a > (Boolean)b);
+		else if (instr instanceof FCMPL || instr instanceof DCMPL)
+			return new Boolean((Boolean)a < (Boolean)b);
+		if (instr instanceof LCMP) {
+			
+			return new Boolean((Boolean)a > (Boolean)b);
+		}
+	}
+
 	private Object calc(Instruction instr, ConstantPoolGen cpgen, Object a, Object b) 
 	{
 		OperationType t = getOpType(instr);
@@ -176,10 +310,29 @@ public class ConstantFolder
 		{
 			case ADD:
 				return this.add(((ArithmeticInstruction)instr).getType(cpgen), a,b);
+			case SUB:
+				return this.sub(((ArithmeticInstruction)instr).getType(cpgen), a,b);
+			case MUL:
+				return this.mul(((ArithmeticInstruction)instr).getType(cpgen), a,b);
+			case DIV:
+				return this.div(((ArithmeticInstruction)instr).getType(cpgen), a,b);
+			case NEG:
+				return this.neg(((ArithmeticInstruction)instr).getType(cpgen), a);
+			case REM:
+				return this.rem(((ArithmeticInstruction)instr).getType(cpgen), a,b);
+			case SHL:
+				return this.shl(((ArithmeticInstruction)instr).getType(cpgen), a,b);
+			case SHR:
+				return this.shr(((ArithmeticInstruction)instr).getType(cpgen), a,b);
+			case USHR:
+				return this.ushr(((ArithmeticInstruction)instr).getType(cpgen), a,b);
 			case AND:
 			case OR:
 			case XOR:
-				return this.logic(t,a,b);
+				return this.logic(t, a, b);
+			case CMP:
+				return this.cmp(instr, a, b);
+
 			default:
 				return null;
 		}
