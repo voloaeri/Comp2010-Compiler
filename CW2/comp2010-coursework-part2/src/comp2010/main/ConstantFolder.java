@@ -112,10 +112,6 @@ public class ConstantFolder
 			case Constants.LSHR: //Fall through
 				return OperationType.SHR;
 
-			case Constants.IAND: //Fall through
-			case Constants.LAND: //Fall through
-				return OperationType.AND;
-
 			case Constants.IUSHR: //Fall through
 			case Constants.LUSHR: //Fall through
 				return OperationType.USHR;
@@ -146,12 +142,31 @@ public class ConstantFolder
 		}
 	}
 
+	private Object logic(OperationType t, Object a, Object b)
+	{
+		switch(t) {
+			case AND:
+				return new Boolean((Boolean)a && (Boolean)b);
+			case OR:
+				return new Boolean((Boolean)a || (Boolean)b);
+			case XOR:
+				return new Boolean((Boolean)a ^ (Boolean)b);
+			default:
+				return null;
+		}
+	}
+
 	private Object calc(ArithmeticInstruction instr, ConstantPoolGen cpgen, Object a, Object b) 
 	{
-		switch (getOpType(instr)) 
+		OperationType t = getOpType(instr);
+		switch (t) 
 		{
 			case ADD:
 				return this.add(instr.getType(cpgen), a,b);
+			case AND:
+			case OR:
+			case XOR:
+				return this.logic(t,a,b);
 			default:
 				return null;
 		}
@@ -174,20 +189,6 @@ public class ConstantFolder
 		}
 	}
 
-	private void removeHandle(InstructionList l, InstructionHandle h)
-	{
-		try
-		{
-			System.out.println("Delete "+h);
-			l.delete(h);
-			System.out.println("Done");
-		}
-		catch (TargetLostException e)
-		{
-			e.printStackTrace();
-		}
-	}
-
 	private void simpleFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
 	{
 		// Get the Code of the method, which is a collection of bytecode instructions
@@ -207,32 +208,33 @@ public class ConstantFolder
 		boolean remove = false;
 		for (InstructionHandle handle : instList.getInstructionHandles()) 
 		{
+			//System.out.println("Current handle: "+handle);
 			Instruction instr = handle.getInstruction();
 
 			if (instr instanceof LDC) 
 			{
 				LDC ldc = (LDC) instr;
 				remove = true; // start adding all following instructions to remove list
-				
 				removeHandles.add(handle);
 				constantStack.addFirst(ldc.getValue(cpgen));
-				removeHandle(instList, handle);
 			}
-			if (instr instanceof LDC2_W) 
+			else if (instr instanceof LDC2_W) 
 			{
 				LDC2_W ldc2w = (LDC2_W) instr;
 				remove = true; // start adding all following instructions to remove list
 				removeHandles.add(handle);
+				//System.out.println("Add to remove list: "+handle);
+
 				constantStack.addFirst(ldc2w.getValue(cpgen));
-				removeHandle(instList, handle);
 			}
-			else if (remove && instr instanceof ConversionInstruction) {
+			else if (remove && instr instanceof ConversionInstruction) 
+			{
 				removeHandles.add(handle);
+				//System.out.println("Add to remove list: "+handle);
 				Object var = constantStack.pop();
 				ConversionInstruction convInstr = (ConversionInstruction) instr;
 				var = createObject(convInstr.getType(cpgen), var);
 				constantStack.addFirst(var);
-				removeHandle(instList, handle);
 			}
 
 			else if (remove && instr instanceof ArithmeticInstruction) 
@@ -270,9 +272,10 @@ public class ConstantFolder
 						break;
 					default:
 						newInstr = null;
-				};
+				}
 
 				// Add result to instruction list
+				System.out.println("Replace "+handle+ " by "+newInstr);
 				instList.insert(handle, newInstr);
 				
 				//System.out.println(result);
@@ -283,24 +286,25 @@ public class ConstantFolder
 			else 
 			{
 				if (remove) 
-					removeHandle(instList, handle);
+				{
+					//System.out.println("Add to remove list: "+handle);
+					removeHandles.add(handle);
+				}
 			}
 		}
-
-		// // Remove unused instructions
-		// for (InstructionHandle h: removeHandles) 
-		// {
-		// 	try
-		// 	{
-		// 		System.out.println("Delete "+h);
-		// 		instList.delete(h);
-		// 		System.out.println("Done");
-		// 	}
-		// 	catch (TargetLostException e)
-		// 	{
-		// 		e.printStackTrace();
-		// 	}
-		// }
+		// Remove unused instructions
+		for (InstructionHandle h: removeHandles) 
+		{
+			try
+			{
+				System.out.println("Delete "+h);
+				instList.delete(h);
+			}
+			catch (TargetLostException e)
+			{
+				e.printStackTrace();
+			}
+		}
 
 		// setPositions(true) checks whether jump handles 
 		// are all within the current method
