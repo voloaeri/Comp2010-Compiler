@@ -293,14 +293,18 @@ public class ConstantFolder
 
 	private Object cmp(Instruction instr, Object a, Object b)
 	{
-		if (instr instanceof FCMPG || instr instanceof DCMPG)
-			return new Boolean((Boolean)a > (Boolean)b);
-		else if (instr instanceof FCMPL || instr instanceof DCMPL)
-			return new Boolean((Boolean)a < (Boolean)b);
-		if (instr instanceof LCMP) {
-			
-			return new Boolean((Boolean)a > (Boolean)b);
-		}
+		if (instr instanceof FCMPG)
+			return new Boolean((Float)a > (Float)b);
+		else if (instr instanceof DCMPG)
+			return new Boolean((Double)a > (Double)b);
+		else if (instr instanceof FCMPL)
+			return new Boolean((Float)a < (Float)b);
+		else if (instr instanceof DCMPL)
+			return new Boolean((Double)a < (Double)b);
+		else if (instr instanceof LCMP)
+			return new Integer(Long.compare((Long)a, (Long)b));
+		else
+			return null;
 	}
 
 	private Object calc(Instruction instr, ConstantPoolGen cpgen, Object a, Object b) 
@@ -460,11 +464,16 @@ public class ConstantFolder
 						Object b = constantStack.pop();
 
 						// Perform calculation
-						Boolean result = (Boolean) calc(instr, cpgen, a, b);
-
-						instList.insert(handle, new ICONST(result?1:0));
-						
-
+						if (instr instanceof LCMP)
+						{
+							Integer result = (Integer) calc(instr, cpgen, a, b);
+							instList.insert(handle, new ICONST(result));
+						}
+						else
+						{
+							Boolean result = (Boolean) calc(instr, cpgen, a, b);
+							instList.insert(handle, new ICONST(result?1:0));
+						}
 					}
 					//System.out.println("Add to remove list: "+handle);
 					removeHandles.add(handle);
