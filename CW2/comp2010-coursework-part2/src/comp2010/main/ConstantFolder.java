@@ -393,8 +393,6 @@ public class ConstantFolder
 				LDC2_W ldc2w = (LDC2_W) instr;
 				remove = true; // start adding all following instructions to remove list
 				removeHandles.add(handle);
-				//System.out.println("Add to remove list: "+handle);
-
 				constantStack.addFirst(ldc2w.getValue(cpgen));
 			}
 			else if (remove && instr instanceof ConversionInstruction) 
@@ -410,12 +408,18 @@ public class ConstantFolder
 			else if (remove && instr instanceof ArithmeticInstruction) 
 			{
 				remove = false; // Found an operation ==> stop removing
-
+				removeHandles.add(handle);
 				ArithmeticInstruction arith = (ArithmeticInstruction) instr;
 
 				// Get last two loaded constants from constantStack
 				Object a = constantStack.pop();
-				Object b = constantStack.pop();
+				
+
+				Object b;
+				if (constantStack.isEmpty())
+					b = new Object();
+				else
+					b = constantStack.pop();
 				
 				// Perform calculation
 				Object result = calc(arith, cpgen, a, b);
@@ -522,11 +526,9 @@ public class ConstantFolder
 
 	private void optimizeMethod(ClassGen gen, ConstantPoolGen cpgen, Method method)
 	{
-		
 		simpleFolding(gen, cpgen, method);
 		constantFolding(gen, cpgen, method);
 		dynamicFolding(gen, cpgen, method);
-		
 	}
 
 	public void optimize()
@@ -542,10 +544,10 @@ public class ConstantFolder
 		
 		Constant[] constants = cp.getConstantPool();
 
-		// Do your optimization here
 		Method[] methods = gen.getMethods();
 		for (Method m : methods)
 		{
+			// Iterate over every method object
 			optimizeMethod(gen, cpgen, m);
 		}
 
