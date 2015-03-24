@@ -138,7 +138,7 @@ public class ConstantFolder
 		}
 	}
 	
-	private Object add(Type t, Object a, Object b) 
+	private Number add(Type t, Object a, Object b) 
 	{
 		switch (t.getType()) 
 		{
@@ -155,7 +155,7 @@ public class ConstantFolder
 		}
 	}
 
-	private Object sub(Type t, Object a, Object b) 
+	private Number sub(Type t, Object a, Object b) 
 	{
 		switch (t.getType()) 
 		{
@@ -171,7 +171,7 @@ public class ConstantFolder
 				return null;
 		}
 	}
-	private Object mul(Type t, Object a, Object b) 
+	private Number mul(Type t, Object a, Object b) 
 	{
 		switch (t.getType()) 
 		{
@@ -187,7 +187,7 @@ public class ConstantFolder
 				return null;
 		}
 	}
-	private Object div(Type t, Object a, Object b) 
+	private Number div(Type t, Object a, Object b) 
 	{
 		switch (t.getType()) 
 		{
@@ -204,7 +204,7 @@ public class ConstantFolder
 		}
 	}
 
-	private Object neg(Type t, Object a) 
+	private Number neg(Type t, Object a) 
 	{
 		switch (t.getType()) 
 		{
@@ -221,7 +221,7 @@ public class ConstantFolder
 		}
 	}
 
-	private Object rem(Type t, Object a, Object b) 
+	private Number rem(Type t, Object a, Object b) 
 	{
 		switch (t.getType()) 
 		{
@@ -238,7 +238,7 @@ public class ConstantFolder
 		}
 	}
 
-	private Object shl(Type t, Object a, Object b) 
+	private Number shl(Type t, Object a, Object b) 
 	{
 		switch (t.getType()) 
 		{
@@ -251,7 +251,7 @@ public class ConstantFolder
 		}
 	}
 
-	private Object shr(Type t, Object a, Object b) 
+	private Number shr(Type t, Object a, Object b) 
 	{
 		switch (t.getType()) 
 		{
@@ -264,7 +264,7 @@ public class ConstantFolder
 		}
 	}
 
-	private Object ushr(Type t, Object a, Object b) 
+	private Number ushr(Type t, Object a, Object b) 
 	{
 		switch (t.getType()) 
 		{
@@ -277,37 +277,37 @@ public class ConstantFolder
 		}
 	}
 
-	private Object logic(OperationType t, Object a, Object b)
+	private Integer logic(OperationType t, Object a, Object b)
 	{
 		switch(t) {
 			case AND:
-				return new Boolean((Boolean)a && (Boolean)b);
+				return new Integer((Boolean)a && (Boolean)b? 1 : 0);
 			case OR:
-				return new Boolean((Boolean)a || (Boolean)b);
+				return new Integer((Boolean)a || (Boolean)b? 1 : 0);
 			case XOR:
-				return new Boolean((Boolean)a ^ (Boolean)b);
+				return new Integer((Boolean)a ^ (Boolean)b? 1 : 0);
 			default:
 				return null;
 		}
 	}
 
-	private Object cmp(Instruction instr, Object a, Object b)
+	private Integer cmp(Instruction instr, Object a, Object b)
 	{
 		if (instr instanceof FCMPG)
-			return new Boolean((Float)a > (Float)b);
+			return new Integer((Float)a > (Float)b ? 1 : 0);
 		else if (instr instanceof DCMPG)
-			return new Boolean((Double)a > (Double)b);
+			return new Integer((Double)a > (Double)b ? 1 : 0);
 		else if (instr instanceof FCMPL)
-			return new Boolean((Float)a < (Float)b);
+			return new Integer((Float)a < (Float)b ? 1 : 0);
 		else if (instr instanceof DCMPL)
-			return new Boolean((Double)a < (Double)b);
+			return new Integer((Double)a < (Double)b ? 1 : 0);
 		else if (instr instanceof LCMP)
 			return new Integer(Long.compare((Long)a, (Long)b));
 		else
 			return null;
 	}
 
-	private Object calc(Instruction instr, ConstantPoolGen cpgen, Object a, Object b) 
+	private Number calc(Instruction instr, ConstantPoolGen cpgen, Object a, Object b) 
 	{
 		OperationType t = getOpType(instr);
 		switch (t) 
@@ -409,6 +409,7 @@ public class ConstantFolder
 
 			else if (remove && instr instanceof ArithmeticInstruction) 
 			{
+				removeHandles.add(handle);
 				remove = false; // Found an operation ==> stop removing
 				//removeHandles.add(handle);
 				ArithmeticInstruction arith = (ArithmeticInstruction) instr;
@@ -424,7 +425,7 @@ public class ConstantFolder
 					b = constantStack.pop();
 				
 				// Perform calculation
-				Object result = calc(arith, cpgen, a, b);
+				Number result = calc(arith, cpgen, a, b);
 				
 				int index = -1;
 				Instruction newInstr;
@@ -451,7 +452,7 @@ public class ConstantFolder
 				}
 
 				// Add result to instruction list
-				System.out.println("Replace "+handle+ " by "+newInstr);
+				System.out.println("Insert " + newInstr + " before " + handle);
 				instList.insert(handle, newInstr);
 				
 				changed = true;
@@ -468,21 +469,14 @@ public class ConstantFolder
 					//removeHandles.add(handle);
 					if (instr instanceof DCMPG || instr instanceof DCMPL || instr instanceof FCMPG || instr instanceof FCMPL  || instr instanceof LCMP)
 					{
+						removeHandles.add(handle);
+						remove = false;
 						// Get last two loaded constants from constantStack
 						Object a = constantStack.pop();
 						Object b = constantStack.pop();
 
-						// Perform calculation
-						if (instr instanceof LCMP)
-						{
-							Integer result = (Integer) calc(instr, cpgen, a, b);
-							instList.insert(handle, new ICONST(result));
-						}
-						else
-						{
-							Boolean result = (Boolean) calc(instr, cpgen, a, b);
-							instList.insert(handle, new ICONST(result?1:0));
-						}
+						Integer result = (Integer) calc(instr, cpgen, a, b);
+						instList.insert(handle, new ICONST(result));
 
 						changed = true;
 					}
@@ -529,12 +523,14 @@ public class ConstantFolder
 		gen.replaceMethod(method, newMethod);
 		//System.out.println(newMethod.getCode());
 
-		//if (changed)
+		//System.out.println("Simple folding run done");
+
+		if (changed)
 			// If anything has changed, run the whole stuff again until nothing changes any more
-		//	simpleFolding(gen, cpgen, newMethod);
+			simpleFolding(gen, cpgen, newMethod);
 
-		System.out.println("Simple folding run done");
-
+		
+		//System.out.println("Simple folding done");
 	}
 
 	private void constantFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
