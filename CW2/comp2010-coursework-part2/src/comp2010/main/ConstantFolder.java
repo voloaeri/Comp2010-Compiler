@@ -62,13 +62,68 @@ public class ConstantFolder
 			case Constants.FADD: //Fall through
 			case Constants.DADD: 
 				return OperationType.ADD;
+
+			case Constants.ISUB: //Fall through
+			case Constants.LSUB: //Fall through
+			case Constants.FSUB: //Fall through
+			case Constants.DSUB: 
+				return OperationType.SUB;
+
+			case Constants.IMUL: //Fall through
+			case Constants.LMUL: //Fall through
+			case Constants.FMUL: //Fall through
+			case Constants.DMUL: 
+				return OperationType.MUL;
+
+			case Constants.IDIV: //Fall through
+			case Constants.LDIV: //Fall through
+			case Constants.FDIV: //Fall through
+			case Constants.DDIV: 
+				return OperationType.DIV;
+
+			case Constants.INEG: //Fall through
+			case Constants.LNEG: //Fall through
+			case Constants.FNEG: //Fall through
+			case Constants.DNEG: 
+				return OperationType.NEG;
+
+			case Constants.IREM: //Fall through
+			case Constants.LREM: //Fall through
+			case Constants.FREM: //Fall through
+			case Constants.DREM: 
+				return OperationType.REM;
+
+			case Constants.IAND: //Fall through
+			case Constants.LAND: //Fall through
+				return OperationType.AND;
+
+			case Constants.IOR: //Fall through
+			case Constants.LOR: //Fall through
+				return OperationType.OR;
+
+			case Constants.ISHL: //Fall through
+			case Constants.LSHL: //Fall through
+				return OperationType.SHL;
+
+			case Constants.ISHR: //Fall through
+			case Constants.LSHR: //Fall through
+				return OperationType.SHR;
+
+			case Constants.IAND: //Fall through
+			case Constants.LAND: //Fall through
+				return OperationType.AND;
+
+			case Constants.IUSHR: //Fall through
+			case Constants.LUSHR: //Fall through
+				return OperationType.USHR;
+
 			case Constants.IXOR:
 			case Constants.LXOR:
 				return OperationType.XOR;
+
 			default:
-				break;
-		};
-		return OperationType.NONE;
+				return OperationType.NONE;
+		}
 	}
 	
 	private Object add(Type t, Object a, Object b) 
