@@ -142,6 +142,128 @@ public class ConstantFolder
 		}
 	}
 
+	private Object sub(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()-((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()-((Number)b).longValue());			
+			case Constants.T_FLOAT:
+				return new Float(((Number)a).floatValue()-((Number)b).floatValue());
+			case Constants.T_DOUBLE:
+				return new Double(((Number)a).doubleValue()-((Number)b).doubleValue());
+			default:
+				return null;
+		}
+	}
+	private Object mul(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()*((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()*((Number)b).longValue());			
+			case Constants.T_FLOAT:
+				return new Float(((Number)a).floatValue()*((Number)b).floatValue());
+			case Constants.T_DOUBLE:
+				return new Double(((Number)a).doubleValue()*((Number)b).doubleValue());
+			default:
+				return null;
+		}
+	}
+	private Object div(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()/((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()/((Number)b).longValue());			
+			case Constants.T_FLOAT:
+				return new Float(((Number)a).floatValue()/((Number)b).floatValue());
+			case Constants.T_DOUBLE:
+				return new Double(((Number)a).doubleValue()/((Number)b).doubleValue());
+			default:
+				return null;
+		}
+	}
+
+	private Object neg(Type t, Object a) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(-((Number)a).intValue());
+			case Constants.T_LONG:
+				return new Long(-((Number)a).longValue());			
+			case Constants.T_FLOAT:
+				return new Float(-((Number)a).floatValue());
+			case Constants.T_DOUBLE:
+				return new Double(-((Number)a).doubleValue());
+			default:
+				return null;
+		}
+	}
+
+	private Object rem(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()%((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()%((Number)b).longValue());			
+			case Constants.T_FLOAT:
+				return new Float(((Number)a).floatValue()%((Number)b).floatValue());
+			case Constants.T_DOUBLE:
+				return new Double(((Number)a).doubleValue()%((Number)b).doubleValue());
+			default:
+				return null;
+		}
+	}
+
+	private Object shl(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()<<((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()<<((Number)b).longValue());	
+			default:
+				return null;
+		}
+	}
+
+	private Object shr(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()>>((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()>>((Number)b).longValue());	
+			default:
+				return null;
+		}
+	}
+
+	private Object ushr(Type t, Object a, Object b) 
+	{
+		switch (t.getType()) 
+		{
+			case Constants.T_INT:
+				return new Integer(((Number)a).intValue()>>>((Number)b).intValue());
+			case Constants.T_LONG:
+				return new Long(((Number)a).longValue()>>>((Number)b).longValue());	
+			default:
+				return null;
+		}
+	}
+
 	private Object logic(OperationType t, Object a, Object b)
 	{
 		switch(t) {
@@ -163,6 +285,22 @@ public class ConstantFolder
 		{
 			case ADD:
 				return this.add(instr.getType(cpgen), a,b);
+			case SUB:
+				return this.sub(instr.getType(cpgen), a,b);
+			case MUL:
+				return this.mul(instr.getType(cpgen), a,b);
+			case DIV:
+				return this.div(instr.getType(cpgen), a,b);
+			case NEG:
+				return this.neg(instr.getType(cpgen), a);
+			case REM:
+				return this.rem(instr.getType(cpgen), a,b);
+			case SHL:
+				return this.shl(instr.getType(cpgen), a,b);
+			case SHR:
+				return this.shr(instr.getType(cpgen), a,b);
+			case USHR:
+				return this.ushr(instr.getType(cpgen), a,b);
 			case AND:
 			case OR:
 			case XOR:
