@@ -361,6 +361,7 @@ public class ConstantFolder
 
 	private void simpleFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
 	{
+		boolean changed = false;
 		// Get the Code of the method, which is a collection of bytecode instructions
 		Code methodCode = method.getCode();
 		//System.out.println(methodCode);
@@ -381,23 +382,24 @@ public class ConstantFolder
 			//System.out.println("Current handle: "+handle);
 			Instruction instr = handle.getInstruction();
 
-			if (instr instanceof LDC) 
+			
+			if (!changed && instr instanceof LDC) 
 			{
 				LDC ldc = (LDC) instr;
 				remove = true; // start adding all following instructions to remove list
-				removeHandles.add(handle);
+				
 				constantStack.addFirst(ldc.getValue(cpgen));
 			}
-			else if (instr instanceof LDC2_W) 
+			else if (!changed && instr instanceof LDC2_W) 
 			{
 				LDC2_W ldc2w = (LDC2_W) instr;
 				remove = true; // start adding all following instructions to remove list
-				removeHandles.add(handle);
+				//removeHandles.add(handle);
 				constantStack.addFirst(ldc2w.getValue(cpgen));
 			}
 			else if (remove && instr instanceof ConversionInstruction) 
 			{
-				removeHandles.add(handle);
+				//removeHandles.add(handle);
 				//System.out.println("Add to remove list: "+handle);
 				Object var = constantStack.pop();
 				ConversionInstruction convInstr = (ConversionInstruction) instr;
@@ -408,7 +410,7 @@ public class ConstantFolder
 			else if (remove && instr instanceof ArithmeticInstruction) 
 			{
 				remove = false; // Found an operation ==> stop removing
-				removeHandles.add(handle);
+				//removeHandles.add(handle);
 				ArithmeticInstruction arith = (ArithmeticInstruction) instr;
 
 				// Get last two loaded constants from constantStack
@@ -452,6 +454,8 @@ public class ConstantFolder
 				System.out.println("Replace "+handle+ " by "+newInstr);
 				instList.insert(handle, newInstr);
 				
+				changed = true;
+
 				//System.out.println(result);
 
 				//System.out.println(arith.getType(cpgen));
@@ -461,6 +465,7 @@ public class ConstantFolder
 			{
 				if (remove) 
 				{
+					//removeHandles.add(handle);
 					if (instr instanceof DCMPG || instr instanceof DCMPL || instr instanceof FCMPG || instr instanceof FCMPL  || instr instanceof LCMP)
 					{
 						// Get last two loaded constants from constantStack
@@ -478,25 +483,37 @@ public class ConstantFolder
 							Boolean result = (Boolean) calc(instr, cpgen, a, b);
 							instList.insert(handle, new ICONST(result?1:0));
 						}
+
+						changed = true;
 					}
-					//System.out.println("Add to remove list: "+handle);
-					removeHandles.add(handle);
+				}
+			}
+
+			if (remove)
+			{
+				//System.out.println("Add "+handle+" to remove list");
+				removeHandles.add(handle);
+			}
+
+		}
+
+		// Remove unused instructions
+		if (changed)
+		{
+			for (InstructionHandle h: removeHandles) 
+			{
+				try
+				{
+					System.out.println("Delete "+h);
+					instList.delete(h);
+				}
+				catch (TargetLostException e)
+				{
+					e.printStackTrace();
 				}
 			}
 		}
-		// Remove unused instructions
-		for (InstructionHandle h: removeHandles) 
-		{
-			try
-			{
-				System.out.println("Delete "+h);
-				instList.delete(h);
-			}
-			catch (TargetLostException e)
-			{
-				e.printStackTrace();
-			}
-		}
+		
 
 		// setPositions(true) checks whether jump handles 
 		// are all within the current method
@@ -511,6 +528,12 @@ public class ConstantFolder
 		// replace the method in the original class
 		gen.replaceMethod(method, newMethod);
 		//System.out.println(newMethod.getCode());
+
+		//if (changed)
+			// If anything has changed, run the whole stuff again until nothing changes any more
+		//	simpleFolding(gen, cpgen, newMethod);
+
+		System.out.println("Simple folding run done");
 
 	}
 
