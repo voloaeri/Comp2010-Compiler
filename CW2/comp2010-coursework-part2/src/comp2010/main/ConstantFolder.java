@@ -18,6 +18,12 @@ import org.apache.bcel.classfile.Code;
 import org.apache.bcel.generic.LDC;
 import org.apache.bcel.generic.LDC2_W;
 import org.apache.bcel.generic.LDC_W;
+import org.apache.bcel.generic.FCMPL;
+import org.apache.bcel.generic.FCMPG;
+import org.apache.bcel.generic.DCMPL;
+import org.apache.bcel.generic.DCMPG;
+import org.apache.bcel.generic.LCMP;
+import org.apache.bcel.generic.ICONST;
 import org.apache.bcel.classfile.ConstantString;
 import org.apache.bcel.classfile.ConstantUtf8;
 import org.apache.bcel.generic.InstructionHandle;
@@ -53,7 +59,7 @@ public class ConstantFolder
 	
 	enum OperationType 
 	{
-		ADD, SUB, DIV, MUL, NEG, REM, AND, OR, SHL, SHR, USHR, XOR, NONE
+		ADD, SUB, DIV, MUL, NEG, REM, AND, OR, SHL, SHR, USHR, XOR, CMP, NONE
 	}
 	
 	private OperationType getOpType(Instruction instr) 
@@ -95,6 +101,13 @@ public class ConstantFolder
 			case Constants.FREM: //Fall through
 			case Constants.DREM: 
 				return OperationType.REM;
+
+			case Constants.DCMPG: //Fall through
+			case Constants.DCMPL: //Fall through
+			case Constants.FCMPG: //Fall through
+			case Constants.FCMPL: //Fall through
+			case Constants.LCMP: 
+				return OperationType.CMP;
 
 			case Constants.IAND: //Fall through
 			case Constants.LAND: //Fall through
@@ -156,13 +169,13 @@ public class ConstantFolder
 		}
 	}
 
-	private Object calc(ArithmeticInstruction instr, ConstantPoolGen cpgen, Object a, Object b) 
+	private Object calc(Instruction instr, ConstantPoolGen cpgen, Object a, Object b) 
 	{
 		OperationType t = getOpType(instr);
 		switch (t) 
 		{
 			case ADD:
-				return this.add(instr.getType(cpgen), a,b);
+				return this.add(((ArithmeticInstruction)instr).getType(cpgen), a,b);
 			case AND:
 			case OR:
 			case XOR:
@@ -282,11 +295,24 @@ public class ConstantFolder
 
 				//System.out.println(arith.getType(cpgen));
 				//System.out.println(getType(arith));
-			} 
+			}
 			else 
 			{
 				if (remove) 
 				{
+					if (instr instanceof DCMPG || instr instanceof DCMPL || instr instanceof FCMPG || instr instanceof FCMPL  || instr instanceof LCMP)
+					{
+						// Get last two loaded constants from constantStack
+						Object a = constantStack.pop();
+						Object b = constantStack.pop();
+
+						// Perform calculation
+						Boolean result = (Boolean) calc(instr, cpgen, a, b);
+
+						instList.insert(handle, new ICONST(result?1:0));
+						
+
+					}
 					//System.out.println("Add to remove list: "+handle);
 					removeHandles.add(handle);
 				}
