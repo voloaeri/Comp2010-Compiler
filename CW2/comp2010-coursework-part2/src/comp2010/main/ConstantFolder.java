@@ -538,8 +538,43 @@ public class ConstantFolder
 
 	private void constantFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
 	{
+		boolean changed = false;
+		// Get the Code of the method, which is a collection of bytecode instructions
+		Code methodCode = method.getCode();
+		//System.out.println(methodCode);
+		InstructionList instList = new InstructionList(methodCode.getCode());
+
+		// Initialise a method generator with the original method as the baseline	
+		MethodGen methodGen = new MethodGen(method.getAccessFlags(), method.getReturnType(), method.getArgumentTypes(), null, method.getName(), gen.getClassName(), instList, cpgen);
+		
+		// get the current constant pool
+		ConstantPool cp = cpgen.getConstantPool();
+		// get the constants in the pool
+		
+		Deque<Object> constantStack = new ArrayDeque<Object>();
+		ArrayList<InstructionHandle> removeHandles = new ArrayList<InstructionHandle>();
+		
+		boolean remove = false;
+		for (InstructionHandle handle : instList.getInstructionHandles()) 
+		{
+			//System.out.println("Current handle: "+handle);
+			Instruction instr = handle.getInstruction();
+
+			if (remove)
+				{
+					//System.out.println("Add "+handle+" to remove list");
+					removeHandles.add(handle);
+				}
+
+			
+		}
+
+		if (changed)
+			// If anything has changed, run the whole stuff again until nothing changes any more
+			constantFolding(gen, cpgen, newMethod);
 
 	}
+
 
 	private void dynamicFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
 	{
