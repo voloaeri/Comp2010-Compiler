@@ -14,8 +14,10 @@
 	.limit stack 3
 
 	getstatic java/lang/System/out Ljava/io/PrintStream;
-	ldc 42
-	ldc 12345
+	ldc 10
+	ldc 20
+    iadd
+    ldc 10
     iadd
     invokevirtual java/io/PrintStream/println(I)V
 	return
