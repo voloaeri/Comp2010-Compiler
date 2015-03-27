@@ -26,12 +26,17 @@ import org.apache.bcel.generic.DCMPL;
 import org.apache.bcel.generic.DCMPG;
 import org.apache.bcel.generic.LCMP;
 import org.apache.bcel.generic.ICONST;
+import org.apache.bcel.generic.DCONST;
+import org.apache.bcel.generic.BIPUSH;
+import org.apache.bcel.generic.SIPUSH;
 import org.apache.bcel.classfile.ConstantString;
 import org.apache.bcel.classfile.ConstantUtf8;
 import org.apache.bcel.generic.InstructionHandle;
 import org.apache.bcel.generic.InstructionList;
 import org.apache.bcel.generic.Instruction;
 import org.apache.bcel.classfile.Method;
+import org.apache.bcel.classfile.LocalVariable;
+import org.apache.bcel.classfile.LocalVariableTable;
 import org.apache.bcel.generic.ConversionInstruction;
 import org.apache.bcel.generic.ArithmeticInstruction;
 import org.apache.bcel.generic.MethodGen;
@@ -62,7 +67,7 @@ public class ConstantFolder
 	}
 	
 
-	enum OperationType 
+	private enum OperationType 
 	{
 		ADD, SUB, DIV, MUL, NEG, REM, AND, OR, SHL, SHR, USHR, XOR, CMP, NONE
 	}
@@ -348,7 +353,7 @@ public class ConstantFolder
 
 	}
 
-	private Object createObject(Type t, Object var) {
+	private Number createObject(Type t, Object var) {
 		switch (t.getType()) 
 		{
 			case Constants.T_INT:
@@ -551,11 +556,14 @@ public class ConstantFolder
 		ConstantPool cp = cpgen.getConstantPool();
 		// get the constants in the pool
 		
-		Deque<Object> constantStack = new ArrayDeque<Object>();
-		Deque<InstructionHandle> instructionStack = new ArrayDeque<InstructionHandle>();
-		Map<Integer, ArrayList<InstructionHandle>> constantMap = new HashMap<Integer, ArrayList<InstructionHandle>>();
-		ArrayList<InstructionHandle> removeHandles = new ArrayList<InstructionHandle>();
+		InstructionHandle endHandle = instList.getInstructionHandles()[instList.getInstructionHandles().length-1];
 
+		Deque<Number> constantStack = new ArrayDeque<Number>();
+		Deque<InstructionHandle> instructionStack = new ArrayDeque<InstructionHandle>();
+		Map<Integer, ArrayList<InstructionHandle>> instructionMap = new HashMap<Integer, ArrayList<InstructionHandle>>();
+		Map<Integer, Number> constantMap = new HashMap<Integer, Number>();
+		ArrayList<InstructionHandle> removeHandles = new ArrayList<InstructionHandle>();
+		LocalVariableTable varTable; 
 		boolean remove = false;
 		for (InstructionHandle handle : instList.getInstructionHandles()) 
 		{
@@ -567,7 +575,7 @@ public class ConstantFolder
 				LDC ldc = (LDC) instr;
 				remove = true; // start adding all following instructions to remove list
 				
-				constantStack.addFirst(ldc.getValue(cpgen));
+				constantStack.addFirst((Number)ldc.getValue(cpgen));
 				instructionStack.addFirst(handle);
 			}
 			else if (!changed && instr instanceof LDC2_W) 
@@ -575,7 +583,41 @@ public class ConstantFolder
 				LDC2_W ldc2w = (LDC2_W) instr;
 				remove = true; // start adding all following instructions to remove list
 				//removeHandles.add(handle);
-				constantStack.addFirst(ldc2w.getValue(cpgen));
+				constantStack.addFirst((Number)ldc2w.getValue(cpgen));
+				instructionStack.addFirst(handle);
+			}
+			else if (!changed && instr instanceof BIPUSH) 
+			{
+				BIPUSH bipush = (BIPUSH) instr;
+				remove = true; // start adding all following instructions to remove list
+				//removeHandles.add(handle);
+				constantStack.addFirst(bipush.getValue());
+				instructionStack.addFirst(handle);
+			}
+			else if (!changed && instr instanceof SIPUSH) 
+			{
+				SIPUSH sipush = (SIPUSH) instr;
+				remove = true; // start adding all following instructions to remove list
+				//removeHandles.add(handle);
+				constantStack.addFirst(sipush.getValue());
+				instructionStack.addFirst(handle);
+			}
+			else if (instr instanceof ICONST )
+			{
+				// Todo: DCONST, FCONST, LCONST
+				ICONST iconst = (ICONST) instr;
+				remove = true; // start adding all following instructions to remove list
+				//removeHandles.add(handle);
+				constantStack.addFirst(iconst.getValue());
+				instructionStack.addFirst(handle);
+			}
+			else if (instr instanceof DCONST )
+			{
+				// Todo: DCONST, FCONST, LCONST
+				DCONST dconst = (DCONST) instr;
+				remove = true; // start adding all following instructions to remove list
+				//removeHandles.add(handle);
+				constantStack.addFirst(dconst.getValue());
 				instructionStack.addFirst(handle);
 			}
 
@@ -583,7 +625,7 @@ public class ConstantFolder
 			{
 				//removeHandles.add(handle);
 				//System.out.println("Add to remove list: "+handle);
-				Object var = constantStack.pop();
+				Number var = constantStack.pop();
 				ConversionInstruction convInstr = (ConversionInstruction) instr;
 				var = createObject(convInstr.getType(cpgen), var);
 				constantStack.addFirst(var);
@@ -599,8 +641,6 @@ public class ConstantFolder
 
 				// Get last two loaded constants from constantStack
 				Object a = constantStack.pop();
-				
-
 				Object b;
 				if (constantStack.isEmpty())
 					b = new Object();
@@ -609,7 +649,7 @@ public class ConstantFolder
 				
 				// Perform calculation
 				Number result = calc(arith, cpgen, a, b);
-				
+				constantStack.push(result);
 				int index = -1;
 				Instruction newInstr;
 				switch(arith.getType(cpgen).getType()) 
@@ -640,6 +680,15 @@ public class ConstantFolder
 		
 				changed = true;
 
+				instructionStack.push(handle);
+
+				
+				//System.out.println(instructionStack);
+
+				
+
+				remove = false;
+
 				//System.out.println(result);
 
 				//System.out.println(arith.getType(cpgen));
@@ -651,25 +700,30 @@ public class ConstantFolder
 				StoreInstruction store = (StoreInstruction) instr;
 				ArrayList<InstructionHandle> handleList = new ArrayList<InstructionHandle>();
 				handleList.add(handle);
-				try
+				for (InstructionHandle h : instructionStack)
 				{
-					InstructionHandle h;
-
-					while (true)
-					{
-						handleList.add(instructionStack.pop());
-					}
+					//System.out.println("Pop "+h);
+					handleList.add(h);
+					instructionStack.pop();
 				}
+				
 
-				catch(Exception e)
-				{
+				Number value = constantStack.pop();
+				instructionMap.put(store.getIndex(), handleList);
+				constantMap.put(store.getIndex(), value);
+				//methodGen.addLocalVariable("",store.getType(cpgen), store.getIndex(), handle, endHandle);
+				//remove = false;
+			}
+			else if (remove && instr instanceof LoadInstruction) 
+			{
+				LoadInstruction load = (LoadInstruction) instr;
+				int index = load.getIndex();
 
-				}
-
-				finally
-				{
-					constantMap.put(store.getIndex(), handleList);
-				}
+				Number value = constantMap.get(index);
+				instructionStack.addFirst(handle);
+				constantStack.push(value);
+				//LocalVariable var = methodGen.getLocalVariableTable(cpgen).getLocalVariable(index, handle.getPosition());
+				//System.out.println(var);
 			}
 			else 
 			{
@@ -691,20 +745,14 @@ public class ConstantFolder
 					}
 				}
 			}
-
-			if (remove)
-			{
-				//System.out.println("Add "+handle+" to remove list");
-				removeHandles.add(handle);
-			}
-
 		}
 
 		// Remove unused instructions
 		if (changed)
 		{
-			for (InstructionHandle h: removeHandles) 
+			for (InstructionHandle h : instructionStack) 
 			{
+				//instructionStack.pop();
 				try
 				{
 					System.out.println("Delete "+h);
@@ -715,32 +763,35 @@ public class ConstantFolder
 					e.printStackTrace();
 				}
 			}
+			// for (InstructionHandle h: removeHandles) 
+			// {
+			// 	try
+			// 	{
+			// 		System.out.println("Delete "+h);
+			// 		instList.delete(h);
+			// 	}
+			// 	catch (TargetLostException e)
+			// 	{
+			// 		e.printStackTrace();
+			// 	}
+			// }
+			
+			// setPositions(true) checks whether jump handles 
+			// are all within the current method
+			instList.setPositions(true);
+
+			// set max stack/local
+			methodGen.setMaxStack();
+			methodGen.setMaxLocals();
+
+			// generate the new method with replaced iconst
+			Method newMethod = methodGen.getMethod();
+			// replace the method in the original class
+			gen.replaceMethod(method, newMethod);
+
+			constantFolding(gen, cpgen, newMethod);
 		}
-		
 
-		// setPositions(true) checks whether jump handles 
-		// are all within the current method
-		instList.setPositions(true);
-
-		// set max stack/local
-		methodGen.setMaxStack();
-		methodGen.setMaxLocals();
-
-		// generate the new method with replaced iconst
-		Method newMethod = methodGen.getMethod();
-		// replace the method in the original class
-		gen.replaceMethod(method, newMethod);
-		//System.out.println(newMethod.getCode());
-
-
-		//System.out.println("Simple folding run done");
-
-		//if (changed)
-			// If anything has changed, run the whole stuff again until nothing changes any more
-			//constantFolding(gen, cpgen, newMethod);
-
-		
-		//System.out.println("Simple folding done");
 
 	}
 
@@ -752,8 +803,10 @@ public class ConstantFolder
 
 	private void optimizeMethod(ClassGen gen, ConstantPoolGen cpgen, Method method)
 	{
-		simpleFolding(gen, cpgen, method);
+		//simpleFolding(gen, cpgen, method);
+		//System.out.println("Simple folding done");
 		constantFolding(gen, cpgen, method);
+		System.out.println("Constant folding done");
 		dynamicFolding(gen, cpgen, method);
 	}
 
