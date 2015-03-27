@@ -51,8 +51,8 @@ public class Main extends SimpleFileVisitor<Path> {
 
     @Override
     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-        //if(file.toString().endsWith(".class")){
-        if(file.toString().endsWith("SimpleFolding.class")){
+        if(file.toString().endsWith(".class")){
+        //if(file.toString().endsWith("SimpleFolding.class")){
             //System.out.println(file.toString());
             ConstantFolder cf = new ConstantFolder(file.toString());
             //cf.optimize();

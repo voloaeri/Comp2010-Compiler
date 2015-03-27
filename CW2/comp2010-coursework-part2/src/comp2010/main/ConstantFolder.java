@@ -511,30 +511,26 @@ public class ConstantFolder
 					e.printStackTrace();
 				}
 			}
-		}
-		
+			// setPositions(true) checks whether jump handles 
+			// are all within the current method
+			instList.setPositions(true);
 
-		// setPositions(true) checks whether jump handles 
-		// are all within the current method
-		instList.setPositions(true);
+			// set max stack/local
+			methodGen.setMaxStack();
+			methodGen.setMaxLocals();
 
-		// set max stack/local
-		methodGen.setMaxStack();
-		methodGen.setMaxLocals();
-
-		// generate the new method with replaced iconst
-		Method newMethod = methodGen.getMethod();
-		// replace the method in the original class
-		gen.replaceMethod(method, newMethod);
-		//System.out.println(newMethod.getCode());
+			// generate the new method with replaced iconst
+			Method newMethod = methodGen.getMethod();
+			// replace the method in the original class
+			gen.replaceMethod(method, newMethod);
+			//System.out.println(newMethod.getCode());
 
 
-		//System.out.println("Simple folding run done");
+			//System.out.println("Simple folding run done");
 
-		if (changed)
 			// If anything has changed, run the whole stuff again until nothing changes any more
 			simpleFolding(gen, cpgen, newMethod);
-
+		}
 		
 		//System.out.println("Simple folding done");
 
