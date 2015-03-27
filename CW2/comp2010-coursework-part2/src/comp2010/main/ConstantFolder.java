@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.bcel.classfile.ClassParser;
 import org.apache.bcel.classfile.JavaClass;
@@ -36,6 +38,8 @@ import org.apache.bcel.generic.MethodGen;
 import org.apache.bcel.generic.Type;
 import org.apache.bcel.generic.TargetLostException;
 import org.apache.bcel.Constants;
+import org.apache.bcel.generic.StoreInstruction;
+import org.apache.bcel.generic.LoadInstruction;
 
 public class ConstantFolder
 {
@@ -552,26 +556,195 @@ public class ConstantFolder
 		// get the constants in the pool
 		
 		Deque<Object> constantStack = new ArrayDeque<Object>();
+		Deque<InstructionHandle> instructionStack = new ArrayDeque<InstructionHandle>();
+		Map<Integer, ArrayList<InstructionHandle>> constantMap = new HashMap<Integer, ArrayList<InstructionHandle>>();
 		ArrayList<InstructionHandle> removeHandles = new ArrayList<InstructionHandle>();
-		
+
 		boolean remove = false;
 		for (InstructionHandle handle : instList.getInstructionHandles()) 
 		{
 			//System.out.println("Current handle: "+handle);
 			Instruction instr = handle.getInstruction();
 
-			if (remove)
+			if (!changed && instr instanceof LDC) 
+			{
+				LDC ldc = (LDC) instr;
+				remove = true; // start adding all following instructions to remove list
+				
+				constantStack.addFirst(ldc.getValue(cpgen));
+				instructionStack.addFirst(handle);
+			}
+			else if (!changed && instr instanceof LDC2_W) 
+			{
+				LDC2_W ldc2w = (LDC2_W) instr;
+				remove = true; // start adding all following instructions to remove list
+				//removeHandles.add(handle);
+				constantStack.addFirst(ldc2w.getValue(cpgen));
+				instructionStack.addFirst(handle);
+			}
+
+			else if (remove && instr instanceof ConversionInstruction) 
+			{
+				//removeHandles.add(handle);
+				//System.out.println("Add to remove list: "+handle);
+				Object var = constantStack.pop();
+				ConversionInstruction convInstr = (ConversionInstruction) instr;
+				var = createObject(convInstr.getType(cpgen), var);
+				constantStack.addFirst(var);
+				instructionStack.addFirst(handle);
+			}
+
+			else if (remove && instr instanceof ArithmeticInstruction) 
+			{
+				removeHandles.add(handle);
+				remove = false; // Found an operation ==> stop removing
+				//removeHandles.add(handle);
+				ArithmeticInstruction arith = (ArithmeticInstruction) instr;
+
+				// Get last two loaded constants from constantStack
+				Object a = constantStack.pop();
+				
+
+				Object b;
+				if (constantStack.isEmpty())
+					b = new Object();
+				else
+					b = constantStack.pop();
+				
+				// Perform calculation
+				Number result = calc(arith, cpgen, a, b);
+				
+				int index = -1;
+				Instruction newInstr;
+				switch(arith.getType(cpgen).getType()) 
 				{
-					//System.out.println("Add "+handle+" to remove list");
-					removeHandles.add(handle);
+					case Constants.T_INT:
+						index = cpgen.addInteger(((Integer)result).intValue());
+						newInstr = new LDC(index);
+						break;
+					case Constants.T_LONG:
+						index = cpgen.addLong(((Long)result).longValue());			
+						newInstr = new LDC2_W(index);
+						break;
+					case Constants.T_FLOAT:
+						index = cpgen.addFloat(((Float)result).floatValue());
+						newInstr = new LDC(index);
+						break;
+					case Constants.T_DOUBLE:
+						index = cpgen.addDouble(((Double)result).doubleValue());
+						newInstr = new LDC_W(index);
+						break;
+					default:
+						newInstr = null;
 				}
 
-			
+				// Add result to instruction list
+				System.out.println("Insert " + newInstr + " before " + handle);
+				instList.insert(handle, newInstr);
+		
+				changed = true;
+
+				//System.out.println(result);
+
+				//System.out.println(arith.getType(cpgen));
+				//System.out.println(getType(arith));
+			}
+
+			else if (remove && instr instanceof StoreInstruction) 
+			{
+				StoreInstruction store = (StoreInstruction) instr;
+				ArrayList<InstructionHandle> handleList = new ArrayList<InstructionHandle>();
+				handleList.add(handle);
+				try
+				{
+					InstructionHandle h;
+
+					while (true)
+					{
+						handleList.add(instructionStack.pop());
+					}
+				}
+
+				catch(Exception e)
+				{
+
+				}
+
+				finally
+				{
+					constantMap.put(store.getIndex(), handleList);
+				}
+			}
+			else 
+			{
+				if (remove) 
+				{
+					//removeHandles.add(handle);
+					if (instr instanceof DCMPG || instr instanceof DCMPL || instr instanceof FCMPG || instr instanceof FCMPL  || instr instanceof LCMP)
+					{
+						removeHandles.add(handle);
+						remove = false;
+						// Get last two loaded constants from constantStack
+						Object a = constantStack.pop();
+						Object b = constantStack.pop();
+
+						Integer result = (Integer) calc(instr, cpgen, a, b);
+						instList.insert(handle, new ICONST(result));
+
+						changed = true;
+					}
+				}
+			}
+
+			if (remove)
+			{
+				//System.out.println("Add "+handle+" to remove list");
+				removeHandles.add(handle);
+			}
+
 		}
 
+		// Remove unused instructions
 		if (changed)
+		{
+			for (InstructionHandle h: removeHandles) 
+			{
+				try
+				{
+					System.out.println("Delete "+h);
+					instList.delete(h);
+				}
+				catch (TargetLostException e)
+				{
+					e.printStackTrace();
+				}
+			}
+		}
+		
+
+		// setPositions(true) checks whether jump handles 
+		// are all within the current method
+		instList.setPositions(true);
+
+		// set max stack/local
+		methodGen.setMaxStack();
+		methodGen.setMaxLocals();
+
+		// generate the new method with replaced iconst
+		Method newMethod = methodGen.getMethod();
+		// replace the method in the original class
+		gen.replaceMethod(method, newMethod);
+		//System.out.println(newMethod.getCode());
+
+
+		//System.out.println("Simple folding run done");
+
+		//if (changed)
 			// If anything has changed, run the whole stuff again until nothing changes any more
-			constantFolding(gen, cpgen, newMethod);
+			//constantFolding(gen, cpgen, newMethod);
+
+		
+		//System.out.println("Simple folding done");
 
 	}
 
