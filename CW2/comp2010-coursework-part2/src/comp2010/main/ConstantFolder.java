@@ -573,9 +573,15 @@ public class ConstantFolder
 			if (!changed && instr instanceof LDC) 
 			{
 				LDC ldc = (LDC) instr;
+				try 
+				{	
+					constantStack.addFirst((Number)ldc.getValue(cpgen));
+				}
+				catch (ClassCastException e)
+				{
+					continue;
+				}
 				remove = true; // start adding all following instructions to remove list
-				
-				constantStack.addFirst((Number)ldc.getValue(cpgen));
 				instructionStack.addFirst(handle);
 			}
 			else if (!changed && instr instanceof LDC2_W) 
