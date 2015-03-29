@@ -567,16 +567,22 @@ public class ConstantFolder
 		boolean remove = false;
 		for (InstructionHandle handle : instList.getInstructionHandles()) 
 		{
-			//System.out.println("Current handle: "+handle);
+			System.out.println("Current handle: "+handle);
 			Instruction instr = handle.getInstruction();
 
 			if (!changed && instr instanceof LDC) 
 			{
 				LDC ldc = (LDC) instr;
+				try {
+					constantStack.addFirst((Number)ldc.getValue(cpgen));
+				}
+				catch(ClassCastException e) {
+					continue;
+				}
+
 				remove = true; // start adding all following instructions to remove list
-				
-				constantStack.addFirst((Number)ldc.getValue(cpgen));
 				instructionStack.addFirst(handle);
+				
 			}
 			else if (!changed && instr instanceof LDC2_W) 
 			{
@@ -725,25 +731,19 @@ public class ConstantFolder
 				//LocalVariable var = methodGen.getLocalVariableTable(cpgen).getLocalVariable(index, handle.getPosition());
 				//System.out.println(var);
 			}
-			else 
+			else if (remove && (instr instanceof DCMPG || instr instanceof DCMPL || instr instanceof FCMPG || instr instanceof FCMPL  || instr instanceof LCMP))
 			{
-				if (remove) 
-				{
-					//removeHandles.add(handle);
-					if (instr instanceof DCMPG || instr instanceof DCMPL || instr instanceof FCMPG || instr instanceof FCMPL  || instr instanceof LCMP)
-					{
-						removeHandles.add(handle);
-						remove = false;
-						// Get last two loaded constants from constantStack
-						Object a = constantStack.pop();
-						Object b = constantStack.pop();
+				//removeHandles.add(handle);
+				removeHandles.add(handle);
+				remove = false;
+				// Get last two loaded constants from constantStack
+				Object a = constantStack.pop();
+				Object b = constantStack.pop();
 
-						Integer result = (Integer) calc(instr, cpgen, a, b);
-						instList.insert(handle, new ICONST(result));
+				Integer result = (Integer) calc(instr, cpgen, a, b);
+				instList.insert(handle, new ICONST(result));
 
-						changed = true;
-					}
-				}
+				changed = true;
 			}
 		}
 
