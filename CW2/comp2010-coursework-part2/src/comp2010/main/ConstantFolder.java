@@ -573,13 +573,15 @@ public class ConstantFolder
 			if (!changed && instr instanceof LDC) 
 			{
 				LDC ldc = (LDC) instr;
-				try {
+				try 
+				{	
 					constantStack.addFirst((Number)ldc.getValue(cpgen));
 				}
-				catch(ClassCastException e) {
+				catch (ClassCastException e)
+				{
 					continue;
 				}
-
+				
 				remove = true; // start adding all following instructions to remove list
 				instructionStack.addFirst(handle);
 				
