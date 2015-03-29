@@ -19,4 +19,10 @@ public class ConstantVariableFolding
         int y = 54321;
         return x > y;
     }
+
+    public double methodFour(){
+        double x = 4.0;
+        double y = 8.0;
+        return 2+y/x;
+    }
 }
