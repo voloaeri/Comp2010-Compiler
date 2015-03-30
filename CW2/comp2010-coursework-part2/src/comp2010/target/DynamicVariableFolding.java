@@ -9,11 +9,13 @@ public class DynamicVariableFolding {
     }
 
     public boolean methodTwo() {
-        int x = 12345;
-        int y = 54321;
-        System.out.println(x < y);
-        y = 0;
-        return x > y;
+        // int x = 12345;
+        // int y = 54321;
+        // System.out.println(x < y);
+        System.out.println(true);
+        // y = 0;
+        // return x > y;
+        return true;
     }
 
     public int methodThree() {

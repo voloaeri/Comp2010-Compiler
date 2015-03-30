@@ -18,10 +18,23 @@ import org.apache.bcel.classfile.Constant;
 import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.generic.ConstantPoolGen;
 import org.apache.bcel.classfile.Code;
+import org.apache.bcel.generic.IfInstruction;
 import org.apache.bcel.generic.LDC;
 import org.apache.bcel.generic.LDC2_W;
 import org.apache.bcel.generic.LDC_W;
 import org.apache.bcel.generic.FCMPL;
+import org.apache.bcel.generic.IFLE;
+import org.apache.bcel.generic.IFLT;
+import org.apache.bcel.generic.IFGE;
+import org.apache.bcel.generic.IFGT;
+import org.apache.bcel.generic.IFEQ;
+import org.apache.bcel.generic.IFNE;
+import org.apache.bcel.generic.IF_ICMPGE;
+import org.apache.bcel.generic.IF_ICMPGT;
+import org.apache.bcel.generic.IF_ICMPLE;
+import org.apache.bcel.generic.IF_ICMPLT;
+import org.apache.bcel.generic.IF_ICMPEQ;
+import org.apache.bcel.generic.IF_ICMPNE;
 import org.apache.bcel.generic.FCMPG;
 import org.apache.bcel.generic.DCMPL;
 import org.apache.bcel.generic.DCMPG;
@@ -37,6 +50,7 @@ import org.apache.bcel.classfile.ConstantUtf8;
 import org.apache.bcel.generic.InstructionHandle;
 import org.apache.bcel.generic.InstructionList;
 import org.apache.bcel.generic.Instruction;
+import org.apache.bcel.generic.InstructionTargeter;
 import org.apache.bcel.classfile.Method;
 import org.apache.bcel.classfile.LocalVariable;
 import org.apache.bcel.classfile.LocalVariableTable;
@@ -120,6 +134,18 @@ public class ConstantFolder
 			case Constants.FCMPG: //Fall through
 			case Constants.FCMPL: //Fall through
 			case Constants.LCMP: 
+			case Constants.IFNE:
+			case Constants.IFLE:
+			case Constants.IFLT:
+			case Constants.IFGE:
+			case Constants.IFGT:
+			case Constants.IFEQ:
+			case Constants.IF_ICMPEQ:
+			case Constants.IF_ICMPNE:
+			case Constants.IF_ICMPLT:
+			case Constants.IF_ICMPGE:
+			case Constants.IF_ICMPGT:
+			case Constants.IF_ICMPLE:
 				return OperationType.CMP;
 
 			case Constants.IAND: //Fall through
@@ -304,16 +330,34 @@ public class ConstantFolder
 		}
 	}
 
+	// Convert boolean to int (return a if b is true, else return 0)
+	private int b2i(boolean b)
+	{
+		return b?1:0;
+	}
+
 	private Integer cmp(Instruction instr, Object a, Object b)
 	{
 		if (instr instanceof FCMPG)
-			return new Integer((Float)a > (Float)b ? 1 : 0);
+			return new Integer(b2i((Float)a > (Float)b));
 		else if (instr instanceof DCMPG)
-			return new Integer((Double)a > (Double)b ? 1 : 0);
+			return new Integer(b2i((Double)a > (Double)b));
 		else if (instr instanceof FCMPL)
-			return new Integer((Float)a < (Float)b ? 1 : 0);
+			return new Integer(b2i((Float)a < (Float)b));
 		else if (instr instanceof DCMPL)
-			return new Integer((Double)a < (Double)b ? 1 : 0);
+			return new Integer(b2i((Double)a < (Double)b));
+		else if (instr instanceof IF_ICMPEQ || instr instanceof IFEQ)
+			return new Integer(b2i(((Integer)a).equals((Integer)b)));
+		else if (instr instanceof IF_ICMPNE || instr instanceof IFNE)
+			return new Integer(b2i(!((Integer)a).equals((Integer)b)));
+		else if (instr instanceof IF_ICMPGE || instr instanceof IFGE)
+			return new Integer(b2i((Integer)a >= (Integer)b));
+		else if (instr instanceof IF_ICMPLE || instr instanceof IFLE)
+			return new Integer(b2i((Integer)a <= (Integer)b));
+		else if (instr instanceof IF_ICMPGT || instr instanceof IFGT)
+			return new Integer(b2i((Integer)a > (Integer)b));
+		else if (instr instanceof IF_ICMPLT || instr instanceof IFLT)
+			return new Integer(b2i((Integer)a < (Integer)b));
 		else if (instr instanceof LCMP)
 			return new Integer(Long.compare((Long)a, (Long)b));
 		else
@@ -372,70 +416,7 @@ public class ConstantFolder
 		}
 	}
 
-	private void cleanUpInstructionList(Map<Integer, ArrayList<InstructionHandle>> map, InstructionList instList)
-	{
-		//System.out.println(instList);
-		ArrayList<Integer> removeEntries = new ArrayList<Integer>();
-
-		// Iterate over all entries in our map
-		for (Map.Entry<Integer, ArrayList<InstructionHandle>> entry : map.entrySet())
-		{
-			int key = entry.getKey().intValue();
-			boolean remove = false;
-
-			// Iterate over all instructions in instList and check whether there is a load for
-			// the current Key. If not, prepare the entry to be deleted
-			Iterator<InstructionHandle> it = instList.iterator();
-			while (it.hasNext()) 
-			{
-				InstructionHandle handle = (InstructionHandle) it.next();
-				//System.out.println(handle+" ("+System.identityHashCode(handle)+")");
-
-				Instruction instr = handle.getInstruction();
-				if (instr instanceof LoadInstruction)
-				{
-					LoadInstruction load = (LoadInstruction) instr;
-					if (key == load.getIndex())
-					{
-						// Found a load instruction for that key
-						remove = false;
-						// We found at least one load, so we can finish here
-						break;
-					}
-				}
-			}
-
-			if(remove)
-				// No load for that key was found.
-				// I.e. this entry is to be deleted.
-				removeEntries.add(key);
-		}
-		
-		// Remove entries
-		for (Integer key : removeEntries)
-		{
-			System.out.println("Remove block "+key+":");
-
-			// Iterate over all instructions of that entry
-			for (InstructionHandle handle : map.get(key))
-			{
-				try
-				{
-					//System.out.println("\tDelete "+handle+" ("+System.identityHashCode(handle)+")");
-					System.out.println("\tDelete "+handle);
-					instList.delete(handle);
-				}
-				catch (TargetLostException e)
-				{
-					e.printStackTrace();
-					//System.out.println("Target lost");
-				}
-			}
-
-			// Finally remove key from map (not necessary but clean)
-			map.remove(key);
-		}
-	}
+	
 
 	// Checks whether constant is pushed to stack and returns the constant
 	// If instruction is not a push instruction, it returns null
@@ -509,7 +490,79 @@ public class ConstantFolder
 			|| instr instanceof DCMPL 
 			|| instr instanceof FCMPG 
 			|| instr instanceof FCMPL  
-			|| instr instanceof LCMP;
+			|| instr instanceof LCMP
+			|| instr instanceof IfInstruction;
+	}
+
+	private void cleanUpInstructionList(Map<Integer, ArrayList<InstructionHandle>> map, InstructionList instList)
+	{
+		//System.out.println(instList);
+		ArrayList<Integer> removeEntries = new ArrayList<Integer>();
+
+		// Iterate over all entries in our map
+		for (Map.Entry<Integer, ArrayList<InstructionHandle>> entry : map.entrySet())
+		{
+			int key = entry.getKey().intValue();
+			boolean remove = true;
+
+			// Iterate over all instructions in instList and check whether there is a load for
+			// the current Key. If not, prepare the entry to be deleted
+			Iterator<InstructionHandle> it = instList.iterator();
+			while (it.hasNext()) 
+			{
+				InstructionHandle handle = (InstructionHandle) it.next();
+				//System.out.println(handle+" ("+System.identityHashCode(handle)+")");
+
+				Instruction instr = handle.getInstruction();
+				
+				if (instr instanceof LoadInstruction)
+				{
+					LoadInstruction load = (LoadInstruction) instr;
+					if (key == load.getIndex())
+					{
+						// Found a load instruction for that key
+						remove = false;
+						// We found at least one load, so we can finish here
+						break;
+					}
+				}
+			}
+			if(remove)
+				// No load for that key was found.
+				// I.e. this entry is to be deleted.
+				removeEntries.add(key);
+		}
+		
+		// Remove entries
+		for (Integer key : removeEntries)
+		{
+			System.out.println("Remove block #"+key+":");
+			System.out.println(map.get(key));
+
+			// Iterate over all instructions of that entry
+			for (InstructionHandle handle : map.get(key))
+			{
+				try
+				{
+					System.out.println("\tDelete "+handle+" ("+System.identityHashCode(handle)+")");
+					//System.out.println("\tDelete "+handle);
+					instList.delete(handle);
+				}
+				catch (TargetLostException e)
+				{
+					InstructionHandle[] targets = e.getTargets();
+			         for(int i=0; i < targets.length; i++) {
+			           InstructionTargeter[] targeters = targets[i].getTargeters();
+			     
+			           for(int j=0; j < targeters.length; j++)
+			             targeters[j].updateTarget(targets[i], null);
+       				}
+				}
+			}
+
+			// Finally remove key from map (not necessary but clean)
+			map.remove(key);
+		}
 	}
 
 	private void performReduction(Deque<InstructionHandle> instructionStack, 
@@ -517,11 +570,11 @@ public class ConstantFolder
 								  Deque<Integer> pushInstructionStack, 
 								  int instrPointer)
 	{
-		System.out.println("Reduce first "+instrPointer+" instructions of instruction stack from instruction list:");
-		print(instructionStack);
 	
 		// Get initial push instruction for this block (the last instruction that will be removed)
 		int lastPush = pushInstructionStack.pop().intValue();
+		System.out.println("Reduce first "+(instrPointer-lastPush)+" instructions of instruction stack from instruction list:");
+		System.out.println(instructionStack);
 
 		int count = lastPush;
 
@@ -537,16 +590,17 @@ public class ConstantFolder
 			}
 			catch (TargetLostException e)
 			{
-				e.printStackTrace();
+				InstructionHandle[] targets = e.getTargets();
+				for(int i=0; i < targets.length; i++) {
+					InstructionTargeter[] targeters = targets[i].getTargeters();
+
+					for(int j=0; j < targeters.length; j++)
+						targeters[j].updateTarget(targets[i], null);
+				}	
 			}
 
 			count++;
 		} 
-	}
-
-	private void print(Object obj)
-	{
-		System.out.println(obj);
 	}
 
 	private void constantFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
@@ -636,10 +690,16 @@ public class ConstantFolder
 							handleList.add(h);
 						}
 						
+						int index = store.getIndex();
 
 						Number value = constantStack.pop();
-						instructionMap.put(store.getIndex(), handleList);
-						constantMap.put(store.getIndex(), value);
+						
+						if (instructionMap.containsKey(index))
+							instructionMap.get(index).addAll(handleList);
+						else
+							instructionMap.put(index, handleList);
+
+						constantMap.put(index, value);
 					}
 					else if (remove && instr instanceof ArithmeticInstruction) // Perform calculation
 					{
@@ -706,20 +766,32 @@ public class ConstantFolder
 						break;
 
 					}
-					else if (remove && isCmpInstruction(instr))
+					else if (isCmpInstruction(instr))
 					{
 						// Get last two loaded constants from constantStack
+						System.out.println(constantStack);
 						Object a = constantStack.pop();
-						Object b = constantStack.pop();
+						Object b;
+						if (instr instanceof IFLE || instr instanceof IFLT || instr instanceof IFGE || instr instanceof IFGT || instr instanceof IFEQ || instr instanceof IFNE)
+							b = new Integer(0);
+						else
+							b = constantStack.pop();
 
 						Integer result = (Integer) calc(instr, cpgen, a, b);
-						InstructionHandle newHandle = instList.insert(handle, new ICONST(result));
+						int index = cpgen.addInteger(((Integer)result).intValue());
+						Instruction newInstr = new LDC(index);
+
+						System.out.println("Insert " + newInstr + " before " + handle);
 						
-						instructionStack.push(handle);
+						// TODO: Commented out temporarily!!!
+						//InstructionHandle newHandle = instList.insert(handle, newInstr);
+						
+						//instructionStack.push(handle);
+						
+						// Remove index of last push operation (since it will be removed at the end)
+						pushInstructionStack.pop();
 
-						//pushInstructionStack.push(instrPointer);
-
-						instrPointer++;
+						//instrPointer++;
 						changed = true;
 
 						// Only perform one folding at a time. Break out of loop
@@ -783,9 +855,9 @@ public class ConstantFolder
 		for (Method m : methods)
 		{
 			// Iterate over every method object
-			System.out.println("Optimize method: "+cp.getConstant(m.getNameIndex()));
+			System.out.println(">>>>>> Optimize method: "+cp.getConstant(m.getNameIndex()));
 			optimizeMethod(gen, cpgen, m);
-			System.out.println("Optimization done: "+cp.getConstant(m.getNameIndex()));
+			System.out.println("<<<<<< Optimization done: "+cp.getConstant(m.getNameIndex()));
 		}
 
 		// Do your optimization here
