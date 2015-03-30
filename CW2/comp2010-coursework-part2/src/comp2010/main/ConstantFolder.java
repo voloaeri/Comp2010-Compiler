@@ -564,6 +564,7 @@ public class ConstantFolder
 		Deque<Integer> pushInstructionStack = new ArrayDeque<Integer>();
 		Map<Integer, ArrayList<InstructionHandle>> instructionMap = new HashMap<Integer, ArrayList<InstructionHandle>>();
 		Map<Integer, Number> constantMap = new HashMap<Integer, Number>();
+
 		boolean remove = false;
 		boolean changed = false;
 
@@ -589,22 +590,22 @@ public class ConstantFolder
 					constantStack.push(constant);
 					remove = true;
 				}
-				else if (remove && instr instanceof LoadInstruction) 
-				{
-					// Instruction is an indirect push operation 
-					// It loads constant from local variables and pushes it on the stack
-
-					LoadInstruction load = (LoadInstruction) instr;
-					instructionStack.push(handle);
-					pushInstructionStack.push(instrPointer++);
-
-					int index = load.getIndex();
-					Number value = constantMap.get(index);
-					constantStack.push(value);
-				}
 				else if (remove)
 				{
-					if (instr instanceof ConversionInstruction) 
+					if (instr instanceof LoadInstruction) 
+					{
+						// Instruction is an indirect push operation 
+						// It loads constant from local variables and pushes it on the stack
+
+						LoadInstruction load = (LoadInstruction) instr;
+						instructionStack.push(handle);
+						pushInstructionStack.push(instrPointer++);
+
+						int index = load.getIndex();
+						Number value = constantMap.get(index);
+						constantStack.push(value);
+					}
+					else if (instr instanceof ConversionInstruction) 
 					{
 						ConversionInstruction convInstr = (ConversionInstruction) instr;
 						Number var = constantStack.pop();
@@ -762,7 +763,6 @@ public class ConstantFolder
 	private void optimizeMethod(ClassGen gen, ConstantPoolGen cpgen, Method method)
 	{
 		constantFolding(gen, cpgen, method);
-		System.out.println("Constant folding done");
 		dynamicFolding(gen, cpgen, method);
 	}
 
@@ -785,6 +785,7 @@ public class ConstantFolder
 			// Iterate over every method object
 			System.out.println("Optimize method: "+cp.getConstant(m.getNameIndex()));
 			optimizeMethod(gen, cpgen, m);
+			System.out.println("Optimization done: "+cp.getConstant(m.getNameIndex()));
 		}
 
 		// Do your optimization here
