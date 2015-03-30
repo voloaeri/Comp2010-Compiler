@@ -28,6 +28,8 @@ import org.apache.bcel.generic.DCMPG;
 import org.apache.bcel.generic.LCMP;
 import org.apache.bcel.generic.ICONST;
 import org.apache.bcel.generic.DCONST;
+import org.apache.bcel.generic.FCONST;
+import org.apache.bcel.generic.LCONST;
 import org.apache.bcel.generic.BIPUSH;
 import org.apache.bcel.generic.SIPUSH;
 import org.apache.bcel.classfile.ConstantString;
@@ -321,7 +323,6 @@ public class ConstantFolder
 	private Number calc(Instruction instr, ConstantPoolGen cpgen, Object a, Object b) 
 	{
 		OperationType t = getOpType(instr);
-		System.out.println(t);
 		switch (t) 
 		{
 			case ADD:
@@ -371,14 +372,19 @@ public class ConstantFolder
 		}
 	}
 
-	private void cleanUpMap(Map<Integer, ArrayList<InstructionHandle>> map, InstructionList instList)
+	private void cleanUpInstructionList(Map<Integer, ArrayList<InstructionHandle>> map, InstructionList instList)
 	{
 		//System.out.println(instList);
 		ArrayList<Integer> removeEntries = new ArrayList<Integer>();
+
+		// Iterate over all entries in our map
 		for (Map.Entry<Integer, ArrayList<InstructionHandle>> entry : map.entrySet())
 		{
-			int index = entry.getKey().intValue();
-			boolean found = false;
+			int key = entry.getKey().intValue();
+			boolean remove = false;
+
+			// Iterate over all instructions in instList and check whether there is a load for
+			// the current Key. If not, prepare the entry to be deleted
 			Iterator<InstructionHandle> it = instList.iterator();
 			while (it.hasNext()) 
 			{
@@ -389,41 +395,162 @@ public class ConstantFolder
 				if (instr instanceof LoadInstruction)
 				{
 					LoadInstruction load = (LoadInstruction) instr;
-					if (index == load.getIndex())
+					if (key == load.getIndex())
 					{
-						found = true;
+						// Found a load instruction for that key
+						remove = false;
+						// We found at least one load, so we can finish here
 						break;
 					}
 				}
 			}
-			removeEntries.add(index);
+
+			if(remove)
+				// No load for that key was found.
+				// I.e. this entry is to be deleted.
+				removeEntries.add(key);
 		}
 		
 		// Remove entries
 		for (Integer key : removeEntries)
 		{
-			System.out.println("Key: "+key);
+			System.out.println("Remove block "+key+":");
+
+			// Iterate over all instructions of that entry
 			for (InstructionHandle handle : map.get(key))
 			{
 				try
 				{
-					System.out.println("\tDelete "+handle+" ("+System.identityHashCode(handle)+")");
+					//System.out.println("\tDelete "+handle+" ("+System.identityHashCode(handle)+")");
+					System.out.println("\tDelete "+handle);
 					instList.delete(handle);
 				}
 				catch (TargetLostException e)
 				{
-					//e.printStackTrace();
-					System.out.println("Target lost");
+					e.printStackTrace();
+					//System.out.println("Target lost");
 				}
 			}
 
+			// Finally remove key from map (not necessary but clean)
 			map.remove(key);
 		}
 	}
 
-	private void simpleFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
+	// Checks whether constant is pushed to stack and returns the constant
+	// If instruction is not a push instruction, it returns null
+	private Number isPushInstruction(Instruction instr, ConstantPoolGen cpgen)
 	{
-		boolean changed = false;
+		if (instr instanceof LDC) 
+		{			
+			LDC ldc = (LDC) instr;
+			try 
+			{	
+				return (Number)ldc.getValue(cpgen);
+			}
+			catch (ClassCastException e)
+			{
+				System.out.println("Could not cast constant to Number. Skipping this one");
+				return null;
+			}
+			
+		}
+		else if (instr instanceof LDC2_W) 
+		{
+			LDC2_W ldc2w = (LDC2_W) instr;
+			try 
+			{	
+				return (Number)ldc2w.getValue(cpgen);
+			}
+			catch (ClassCastException e)
+			{
+				System.out.println("Could not cast constant to Number. Skipping this one");
+				return null;
+			}
+		}
+		else if (instr instanceof BIPUSH) 
+		{
+			BIPUSH bipush = (BIPUSH) instr;
+			return bipush.getValue();
+		}
+		else if (instr instanceof SIPUSH) 
+		{
+			SIPUSH sipush = (SIPUSH) instr;
+			return sipush.getValue();
+		}
+		else if (instr instanceof ICONST )
+		{
+			ICONST iconst = (ICONST) instr;
+			return iconst.getValue();
+		}
+		else if (instr instanceof DCONST )
+		{
+			DCONST dconst = (DCONST) instr;
+			return dconst.getValue();
+		}
+		else if (instr instanceof FCONST )
+		{
+			FCONST fconst = (FCONST) instr;
+			return fconst.getValue();
+		}
+		else if (instr instanceof LCONST )
+		{
+			LCONST lconst = (LCONST) instr;
+			return lconst.getValue();
+		}
+		else
+			// No push instruction
+			return null;
+	}
+
+	private boolean isCmpInstruction(Instruction instr)
+	{
+		return instr instanceof DCMPG 
+			|| instr instanceof DCMPL 
+			|| instr instanceof FCMPG 
+			|| instr instanceof FCMPL  
+			|| instr instanceof LCMP;
+	}
+
+	private void performReduction(Deque<InstructionHandle> instructionStack, 
+								  InstructionList instList, 
+								  Deque<Integer> pushInstructionStack, 
+								  int instrPointer)
+	{
+		System.out.println("Reduce first "+instrPointer+" instructions of instruction stack from instruction list:");
+		print(instructionStack);
+	
+		// Get initial push instruction for this block (the last instruction that will be removed)
+		int lastPush = pushInstructionStack.pop().intValue();
+
+		int count = lastPush;
+
+		// Delete all instructions between lastPush and instrPointer
+		while (count < instrPointer)
+		{
+			InstructionHandle h = instructionStack.pop();
+
+			try
+			{
+				System.out.println("\tDelete "+h);
+				instList.delete(h);	
+			}
+			catch (TargetLostException e)
+			{
+				e.printStackTrace();
+			}
+
+			count++;
+		} 
+	}
+
+	private void print(Object obj)
+	{
+		System.out.println(obj);
+	}
+
+	private void constantFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
+	{
 		// Get the Code of the method, which is a collection of bytecode instructions
 		Code methodCode = method.getCode();
 		//System.out.println(methodCode);
@@ -432,430 +559,185 @@ public class ConstantFolder
 		// Initialise a method generator with the original method as the baseline	
 		MethodGen methodGen = new MethodGen(method.getAccessFlags(), method.getReturnType(), method.getArgumentTypes(), null, method.getName(), gen.getClassName(), instList, cpgen);
 		
-		// get the current constant pool
-		ConstantPool cp = cpgen.getConstantPool();
-		// get the constants in the pool
-		
-		Deque<Object> constantStack = new ArrayDeque<Object>();
-		ArrayList<InstructionHandle> removeHandles = new ArrayList<InstructionHandle>();
+		Deque<Number> constantStack = new ArrayDeque<Number>();
+		Deque<InstructionHandle> instructionStack = new ArrayDeque<InstructionHandle>();
+		Deque<Integer> pushInstructionStack = new ArrayDeque<Integer>();
+		Map<Integer, ArrayList<InstructionHandle>> instructionMap = new HashMap<Integer, ArrayList<InstructionHandle>>();
+		Map<Integer, Number> constantMap = new HashMap<Integer, Number>();
 		boolean remove = false;
+		boolean changed = false;
+
+		// Counts the amount of instructions on instruction stack 
+		// Always increased, however, when a store is executed, it will be reduces by the mount of instructions popped from stack
+		int instrPointer = 0;
+		
+		ConstantPool cp = cpgen.getConstantPool();
+
 		for (InstructionHandle handle : instList.getInstructionHandles()) 
 		{
 			//System.out.println("Current handle: "+handle);
 			Instruction instr = handle.getInstruction();
 
-			
-			if (!changed && instr instanceof LDC) 
+			if (!changed)
 			{
-				LDC ldc = (LDC) instr;
-				remove = true; // start adding all following instructions to remove list
-				
-				constantStack.addFirst(ldc.getValue(cpgen));
-			}
-			else if (!changed && instr instanceof LDC2_W) 
-			{
-				LDC2_W ldc2w = (LDC2_W) instr;
-				remove = true; // start adding all following instructions to remove list
-				//removeHandles.add(handle);
-				constantStack.addFirst(ldc2w.getValue(cpgen));
-			}
-			else if (remove && instr instanceof ConversionInstruction) 
-			{
-				//removeHandles.add(handle);
-				//System.out.println("Add to remove list: "+handle);
-				Object var = constantStack.pop();
-				ConversionInstruction convInstr = (ConversionInstruction) instr;
-				var = createObject(convInstr.getType(cpgen), var);
-				constantStack.addFirst(var);
-			}
-
-			else if (remove && instr instanceof ArithmeticInstruction) 
-			{
-				removeHandles.add(handle);
-				remove = false; // Found an operation ==> stop removing
-				//removeHandles.add(handle);
-				ArithmeticInstruction arith = (ArithmeticInstruction) instr;
-
-				// Get last two loaded constants from constantStack
-				Object a = constantStack.pop();
-				
-
-				Object b;
-				if (constantStack.isEmpty())
-					b = new Object();
-				else
-					b = constantStack.pop();
-				
-				// Perform calculation
-				Number result = calc(arith, cpgen, a, b);
-				int index = -1;
-				Instruction newInstr;
-				switch(arith.getType(cpgen).getType()) 
+				// Check whether instruction is a direct push operation
+				Number constant = isPushInstruction(instr, cpgen);
+				if (constant != null) 
 				{
-					case Constants.T_INT:
-						index = cpgen.addInteger(((Integer)result).intValue());
-						newInstr = new LDC(index);
-						break;
-					case Constants.T_LONG:
-						index = cpgen.addLong(((Long)result).longValue());			
-						newInstr = new LDC2_W(index);
-						break;
-					case Constants.T_FLOAT:
-						index = cpgen.addFloat(((Float)result).floatValue());
-						newInstr = new LDC(index);
-						break;
-					case Constants.T_DOUBLE:
-						index = cpgen.addDouble(((Double)result).doubleValue());
-						newInstr = new LDC_W(index);
-						break;
-					default:
-						newInstr = null;
+					pushInstructionStack.push(instrPointer++);
+					instructionStack.push(handle);
+					constantStack.push(constant);
+					remove = true;
 				}
-
-				// Add result to instruction list
-				System.out.println("Insert " + newInstr + " before " + handle);
-				instList.insert(handle, newInstr);
-				
-				changed = true;
-
-				//System.out.println(result);
-
-				//System.out.println(arith.getType(cpgen));
-				//System.out.println(getType(arith));
-			}
-			else 
-			{
-				if (remove) 
+				else if (remove && instr instanceof LoadInstruction) 
 				{
-					//removeHandles.add(handle);
-					if (instr instanceof DCMPG || instr instanceof DCMPL || instr instanceof FCMPG || instr instanceof FCMPL  || instr instanceof LCMP)
+					// Instruction is an indirect push operation 
+					// It loads constant from local variables and pushes it on the stack
+
+					LoadInstruction load = (LoadInstruction) instr;
+					instructionStack.push(handle);
+					pushInstructionStack.push(instrPointer++);
+
+					int index = load.getIndex();
+					Number value = constantMap.get(index);
+					constantStack.push(value);
+				}
+				else if (remove)
+				{
+					if (instr instanceof ConversionInstruction) 
 					{
-						removeHandles.add(handle);
-						remove = false;
+						ConversionInstruction convInstr = (ConversionInstruction) instr;
+						Number var = constantStack.pop();
+						var = createObject(convInstr.getType(cpgen), var);
+
+						constantStack.push(var);
+						instructionStack.push(handle);
+						instrPointer++;
+					}
+					else if (instr instanceof StoreInstruction) 
+					{
+						StoreInstruction store = (StoreInstruction) instr;
+						instructionStack.push(handle);
+
+						ArrayList<InstructionHandle> handleList = new ArrayList<InstructionHandle>();
+
+						int lastPush = pushInstructionStack.pop().intValue();
+
+						System.out.println("Store block in instruction map:");
+
+						// Remove the necessary handles from stack and save them in instructionMap
+						// Also decrease
+						while (instrPointer >= lastPush)
+						{
+							InstructionHandle h = instructionStack.pop();
+							instrPointer--;
+							System.out.println("\t"+h);
+							handleList.add(h);
+						}
+						
+
+						Number value = constantStack.pop();
+						instructionMap.put(store.getIndex(), handleList);
+						constantMap.put(store.getIndex(), value);
+					}
+					else if (remove && instr instanceof ArithmeticInstruction) // Perform calculation
+					{
+						ArithmeticInstruction arith = (ArithmeticInstruction) instr;
+
+						remove = false; // Found an atihmetic operation ==> stop removing
+
+						//System.out.println(constantStack);
+
+						// Get last two loaded constants from constantStack
+						Object a = constantStack.pop();
+						
+						Object b;
+						if (constantStack.isEmpty())
+							b = new Object();
+						else
+							b = constantStack.pop();
+						
+						// Remove index of last push operation (since it will be removed at the end)
+						pushInstructionStack.pop();
+
+						// Perform calculation
+						Number result = calc(arith, cpgen, a, b);
+
+						constantStack.push(result);
+						
+						int index;
+						Instruction newInstr;
+						switch(arith.getType(cpgen).getType()) 
+						{
+							case Constants.T_INT:
+								index = cpgen.addInteger(((Integer)result).intValue());
+								newInstr = new LDC(index);
+								break;
+							case Constants.T_FLOAT:
+								index = cpgen.addFloat(((Float)result).floatValue());
+								newInstr = new LDC(index);
+								break;
+							case Constants.T_LONG:
+								index = cpgen.addLong(((Long)result).longValue());			
+								newInstr = new LDC2_W(index);
+								break;
+							case Constants.T_DOUBLE:
+								index = cpgen.addDouble(((Double)result).doubleValue());
+								newInstr = new LDC2_W(index);
+								break;
+							default:
+								index = -1;
+								newInstr = null;
+						}
+
+						// Add result to instruction list
+						System.out.println("Insert " + newInstr + " before " + handle);
+						InstructionHandle newHandle = instList.insert(handle, newInstr);
+
+						instructionStack.push(handle);
+
+						//pushInstructionStack.push(instrPointer);
+
+						//System.out.println(instructionStack);				
+						instrPointer++;
+						changed = true;
+						// Only perform one folding at a time. Break out of loop
+						break;
+
+					}
+					else if (remove && isCmpInstruction(instr))
+					{
 						// Get last two loaded constants from constantStack
 						Object a = constantStack.pop();
 						Object b = constantStack.pop();
 
 						Integer result = (Integer) calc(instr, cpgen, a, b);
-						instList.insert(handle, new ICONST(result));
+						InstructionHandle newHandle = instList.insert(handle, new ICONST(result));
+						
+						instructionStack.push(handle);
 
+						//pushInstructionStack.push(instrPointer);
+
+						instrPointer++;
 						changed = true;
+
+						// Only perform one folding at a time. Break out of loop
+						break;
 					}
 				}
 			}
-
-			if (remove)
-			{
-				//System.out.println("Add "+handle+" to remove list");
-				removeHandles.add(handle);
-			}
-
-		}
-
-		// Remove unused instructions
-		if (changed)
-		{
-			for (InstructionHandle h: removeHandles) 
-			{
-				try
-				{
-					System.out.println("Delete "+h);
-					instList.delete(h);
-				}
-				catch (TargetLostException e)
-				{
-					e.printStackTrace();
-				}
-			}
-			// setPositions(true) checks whether jump handles 
-			// are all within the current method
-			instList.setPositions(true);
-
-			// set max stack/local
-			methodGen.setMaxStack();
-			methodGen.setMaxLocals();
-
-			// generate the new method with replaced iconst
-			Method newMethod = methodGen.getMethod();
-			// replace the method in the original class
-			gen.replaceMethod(method, newMethod);
-			//System.out.println(newMethod.getCode());
-
-
-			//System.out.println("Simple folding run done");
-
-			// If anything has changed, run the whole stuff again until nothing changes any more
-			simpleFolding(gen, cpgen, newMethod);
-		}
-		
-		//System.out.println("Simple folding done");
-
-	}
-
-	private void constantFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
-	{
-		boolean changed = false;
-		// Get the Code of the method, which is a collection of bytecode instructions
-		Code methodCode = method.getCode();
-		//System.out.println(methodCode);
-		InstructionList instList = new InstructionList(methodCode.getCode());
-
-		// Initialise a method generator with the original method as the baseline	
-		MethodGen methodGen = new MethodGen(method.getAccessFlags(), method.getReturnType(), method.getArgumentTypes(), null, method.getName(), gen.getClassName(), instList, cpgen);
-		
-		// get the current constant pool
-		
-		// get the constants in the pool
-		
-		InstructionHandle endHandle = instList.getInstructionHandles()[instList.getInstructionHandles().length-1];
-
-		Deque<Number> constantStack = new ArrayDeque<Number>();
-		Deque<InstructionHandle> instructionStack = new ArrayDeque<InstructionHandle>();
-		Map<Integer, ArrayList<InstructionHandle>> instructionMap = new HashMap<Integer, ArrayList<InstructionHandle>>();
-		Map<Integer, Number> constantMap = new HashMap<Integer, Number>();
-		ArrayList<InstructionHandle> removeHandles = new ArrayList<InstructionHandle>();
-		LocalVariableTable varTable; 
-		boolean remove = false;
-		int instrCount = 0;
-		for (InstructionHandle handle : instList.getInstructionHandles()) 
-		{
-			ConstantPool cp = cpgen.getConstantPool();
-
-			System.out.println("Current handle: "+handle);
-			Instruction instr = handle.getInstruction();
-
-			if (!changed && instr instanceof LDC) 
-			{
-				instrCount = 0;
-				LDC ldc = (LDC) instr;
-				try 
-				{	
-					constantStack.addFirst((Number)ldc.getValue(cpgen));
-				}
-				catch (ClassCastException e)
-				{
-					continue;
-				}
-
-				remove = true; // start adding all following instructions to remove list
-				instructionStack.addFirst(handle);
-				
-			}
-			else if (!changed && instr instanceof LDC2_W) 
-			{
-				instrCount = 0;
-				LDC2_W ldc2w = (LDC2_W) instr;
-				try 
-				{	
-					constantStack.addFirst((Number)ldc2w.getValue(cpgen));
-				}
-				catch (ClassCastException e)
-				{
-					continue;
-				}
-
-				remove = true; // start adding all following instructions to remove list
-				instructionStack.addFirst(handle);
-			}
-			else if (!changed && instr instanceof BIPUSH) 
-			{
-				BIPUSH bipush = (BIPUSH) instr;
-				remove = true; // start adding all following instructions to remove list
-				removeHandles.add(handle);
-				constantStack.addFirst(bipush.getValue());
-				instructionStack.addFirst(handle);
-			}
-			else if (!changed && instr instanceof SIPUSH) 
-			{
-				SIPUSH sipush = (SIPUSH) instr;
-				remove = true; // start adding all following instructions to remove list
-				removeHandles.add(handle);
-				constantStack.addFirst(sipush.getValue());
-				instructionStack.addFirst(handle);
-			}
-			else if (instr instanceof ICONST )
-			{
-				// Todo: DCONST, FCONST, LCONST
-				ICONST iconst = (ICONST) instr;
-				remove = true; // start adding all following instructions to remove list
-				removeHandles.add(handle);
-				constantStack.addFirst(iconst.getValue());
-				instructionStack.addFirst(handle);
-			}
-			else if (instr instanceof DCONST )
-			{
-				// Todo: DCONST, FCONST, LCONST
-				DCONST dconst = (DCONST) instr;
-				remove = true; // start adding all following instructions to remove list
-				removeHandles.add(handle);
-				constantStack.addFirst(dconst.getValue());
-				instructionStack.addFirst(handle);
-			}
-
-			else if (remove && instr instanceof ConversionInstruction) 
-			{
-				removeHandles.add(handle);
-				//System.out.println("Add to remove list: "+handle);
-				Number var = constantStack.pop();
-				ConversionInstruction convInstr = (ConversionInstruction) instr;
-				var = createObject(convInstr.getType(cpgen), var);
-				constantStack.addFirst(var);
-				instructionStack.addFirst(handle);
-			}
-
-			else if (remove && instr instanceof ArithmeticInstruction) 
-			{
-				removeHandles.add(handle);
-				remove = false; // Found an operation ==> stop removing
-				//removeHandles.add(handle);
-				ArithmeticInstruction arith = (ArithmeticInstruction) instr;
-
-				System.out.println(constantStack);
-
-				// Get last two loaded constants from constantStack
-				Object a = constantStack.pop();
-				Object b;
-				if (constantStack.isEmpty())
-					b = new Object();
-				else
-					b = constantStack.pop();
-				
-				// Perform calculation
-				Number result = calc(arith, cpgen, a, b);
-				constantStack.push(result);
-				int index = -1;
-				Instruction newInstr;
-				switch(arith.getType(cpgen).getType()) 
-				{
-					case Constants.T_INT:
-						index = cpgen.addInteger(((Integer)result).intValue());
-						newInstr = new LDC(index);
-						break;
-					case Constants.T_LONG:
-						index = cpgen.addLong(((Long)result).longValue());			
-						newInstr = new LDC2_W(index);
-						break;
-					case Constants.T_FLOAT:
-						index = cpgen.addFloat(((Float)result).floatValue());
-						newInstr = new LDC(index);
-						break;
-					case Constants.T_DOUBLE:
-						index = cpgen.addDouble(((Double)result).doubleValue());
-						newInstr = new LDC2_W(index);
-						break;
-					default:
-						newInstr = null;
-				}
-
-				// Add result to instruction list
-				System.out.println("Insert " + newInstr + " before " + handle);
-				instList.insert(handle, newInstr);
-		
-				changed = true;
-
-				instructionStack.push(handle);
-
-				
-				//System.out.println(instructionStack);				
-
-				remove = false;
-
-				System.out.println(result);
-				//System.out.println(arith.getType(cpgen));
-				//System.out.println(getType(arith));
-			}
-
-			else if (remove && instr instanceof StoreInstruction) 
-			{
-				StoreInstruction store = (StoreInstruction) instr;
-				ArrayList<InstructionHandle> handleList = new ArrayList<InstructionHandle>();
-				System.out.println("Add block to instruction map:");
-				System.out.println("\t"+handle);
-				handleList.add(handle);
-				for (InstructionHandle h : instructionStack)
-				{
-					instrCount--;
-					System.out.println("\t"+h);
-					//System.out.println("Pop "+h);
-					handleList.add(h);
-					instructionStack.pop();
-					if (instrCount == 0)
-						break;
-				}
-				
-
-				Number value = constantStack.pop();
-				instructionMap.put(store.getIndex(), handleList);
-				constantMap.put(store.getIndex(), value);
-				//methodGen.addLocalVariable("",store.getType(cpgen), store.getIndex(), handle, endHandle);
-				//remove = false;
-			}
-			else if (remove && instr instanceof LoadInstruction) 
-			{
-				LoadInstruction load = (LoadInstruction) instr;
-				int index = load.getIndex();
-
-				Number value = constantMap.get(index);
-				instructionStack.addFirst(handle);
-				removeHandles.add(handle);
-				constantStack.push(value);
-				//LocalVariable var = methodGen.getLocalVariableTable(cpgen).getLocalVariable(index, handle.getPosition());
-				//System.out.println(var);
-			}
-			else if (remove && (instr instanceof DCMPG || instr instanceof DCMPL || instr instanceof FCMPG || instr instanceof FCMPL  || instr instanceof LCMP))
-			{
-				//removeHandles.add(handle);
-				removeHandles.add(handle);
-				remove = false;
-				// Get last two loaded constants from constantStack
-				Object a = constantStack.pop();
-				Object b = constantStack.pop();
-
-				Integer result = (Integer) calc(instr, cpgen, a, b);
-				instList.insert(handle, new ICONST(result));
-
-				changed = true;
-			}
-
-			instrCount++;
-		}
-
-		// Remove unused instructions
-		if (changed)
-		{
-			System.out.println("Instructioncount: "+instrCount);
-			for (int i=	0; i<instrCount; i++)
-			{
-				InstructionHandle h = instructionStack.pop();
-
-				try
-				{
-					System.out.println("Delete "+h);
-					instList.delete(h);	
-				}
-				catch (TargetLostException e)
-				{
-					e.printStackTrace();
-				}
-			} 
-
-			cleanUpMap(instructionMap, instList);
-
-			// for (InstructionHandle h: removeHandles) 
-			// {
-			// 	try
-			// 	{
-			// 		System.out.println("Delete "+h);
-			// 		instList.delete(h);
-			// 	}
-			// 	catch (TargetLostException e)
-			// 	{
-			// 		e.printStackTrace();
-			// 	}
-			// }
 			
-			// setPositions(true) checks whether jump handles 
-			// are all within the current method
+			//System.out.println("#instructions on stack: "+instrPointer);
+		}
+
+		// Perform instruction reduction step
+		if (changed)
+		{
+			performReduction(instructionStack, instList, pushInstructionStack, instrPointer);
+			
+			cleanUpInstructionList(instructionMap, instList);
+			
+			// Give all instructions their position number (offset in byte stream), i.e., make the list ready to be dumped.
 			instList.setPositions(true);
 
 			// set max stack/local
@@ -867,11 +749,8 @@ public class ConstantFolder
 			// replace the method in the original class
 			gen.replaceMethod(method, newMethod);
 
-			
 			constantFolding(gen, cpgen, newMethod);
 		}
-
-
 	}
 
 
@@ -882,8 +761,6 @@ public class ConstantFolder
 
 	private void optimizeMethod(ClassGen gen, ConstantPoolGen cpgen, Method method)
 	{
-		//simpleFolding(gen, cpgen, method);
-		//System.out.println("Simple folding done");
 		constantFolding(gen, cpgen, method);
 		System.out.println("Constant folding done");
 		dynamicFolding(gen, cpgen, method);
@@ -906,6 +783,7 @@ public class ConstantFolder
 		for (Method m : methods)
 		{
 			// Iterate over every method object
+			System.out.println("Optimize method: "+cp.getConstant(m.getNameIndex()));
 			optimizeMethod(gen, cpgen, m);
 		}
 
