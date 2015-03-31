@@ -606,7 +606,7 @@ public class ConstantFolder
 		} 
 	}
 
-	private void constantFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
+	private void performFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
 	{
 		// Get the Code of the method, which is a collection of bytecode instructions
 		Code methodCode = method.getCode();
@@ -860,21 +860,10 @@ public class ConstantFolder
 			// replace the method in the original class
 			gen.replaceMethod(method, newMethod);
 
-			constantFolding(gen, cpgen, newMethod);
+			performFolding(gen, cpgen, newMethod);
 		}
 	}
 
-
-	private void dynamicFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
-	{
-
-	}
-
-	private void optimizeMethod(ClassGen gen, ConstantPoolGen cpgen, Method method)
-	{
-		constantFolding(gen, cpgen, method);
-		dynamicFolding(gen, cpgen, method);
-	}
 
 	public void optimize()
 	{
@@ -894,7 +883,7 @@ public class ConstantFolder
 		{
 			// Iterate over every method object
 			System.out.println(">>>>>> Optimize method: "+cp.getConstant(m.getNameIndex()));
-			optimizeMethod(gen, cpgen, m);
+			performFolding(gen, cpgen, m);
 			System.out.println("<<<<<< Optimization done: "+cp.getConstant(m.getNameIndex()));
 		}
 
