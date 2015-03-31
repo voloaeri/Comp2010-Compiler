@@ -20,9 +20,27 @@ public class DynamicVariableFolding {
 
     public int methodThree() {
         int i = 0;
-        int j = i + 3;
-        i = j + 4;
-        j = i + 5;
-        return i * j;
+        int j = i + 3; //j = 3
+        i = j + 4; //i = 7
+        j = i + 6; //j = 13
+
+        while (i < 10) //runs three times
+        {
+            j = j + 2; 
+            i++;
+        }
+
+        //i = 10
+        //j = 19
+        
+
+        //int z = j + -i;
+        //z = -91
+
+        return j-i;
     }
+
+    // public int methodFour() {
+    //     return 1;
+    // }
 }
