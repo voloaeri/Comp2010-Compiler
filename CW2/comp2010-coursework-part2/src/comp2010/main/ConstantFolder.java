@@ -19,6 +19,8 @@ import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.generic.ConstantPoolGen;
 import org.apache.bcel.classfile.Code;
 import org.apache.bcel.generic.IfInstruction;
+import org.apache.bcel.generic.BranchInstruction;
+import org.apache.bcel.generic.BranchHandle;
 import org.apache.bcel.generic.LDC;
 import org.apache.bcel.generic.LDC2_W;
 import org.apache.bcel.generic.LDC_W;
@@ -45,6 +47,7 @@ import org.apache.bcel.generic.FCONST;
 import org.apache.bcel.generic.LCONST;
 import org.apache.bcel.generic.BIPUSH;
 import org.apache.bcel.generic.SIPUSH;
+import org.apache.bcel.generic.GOTO;
 import org.apache.bcel.classfile.ConstantString;
 import org.apache.bcel.classfile.ConstantUtf8;
 import org.apache.bcel.generic.InstructionHandle;
@@ -392,7 +395,7 @@ public class ConstantFolder
 			case XOR:
 				return this.logic(t, a, b);
 			case CMP:
-				return this.cmp(instr, a, b);
+				return this.cmp(instr, b, a);
 
 			default:
 				return null;
@@ -431,7 +434,7 @@ public class ConstantFolder
 			}
 			catch (ClassCastException e)
 			{
-				System.out.println("Could not cast constant to Number. Skipping this one");
+				System.out.println("Could not cast constant to Number. Skipping "+instr);
 				return null;
 			}
 			
@@ -445,7 +448,7 @@ public class ConstantFolder
 			}
 			catch (ClassCastException e)
 			{
-				System.out.println("Could not cast constant to Number. Skipping this one");
+				System.out.println("Could not cast constant to Number. Skipping "+instr);
 				return null;
 			}
 		}
@@ -652,12 +655,15 @@ public class ConstantFolder
 						// It loads constant from local variables and pushes it on the stack
 
 						LoadInstruction load = (LoadInstruction) instr;
-						instructionStack.push(handle);
-						pushInstructionStack.push(instrPointer++);
-
 						int index = load.getIndex();
 						Number value = constantMap.get(index);
-						constantStack.push(value);
+
+						if (value != null)
+						{
+							instructionStack.push(handle);
+							pushInstructionStack.push(instrPointer++);
+							constantStack.push(value);
+						}
 					}
 					else if (instr instanceof ConversionInstruction) 
 					{
@@ -665,9 +671,12 @@ public class ConstantFolder
 						Number var = constantStack.pop();
 						var = createObject(convInstr.getType(cpgen), var);
 
-						constantStack.push(var);
-						instructionStack.push(handle);
-						instrPointer++;
+						if (var != null)
+						{
+							constantStack.push(var);
+							instructionStack.push(handle);
+							instrPointer++;
+						}						
 					}
 					else if (instr instanceof StoreInstruction) 
 					{
@@ -676,32 +685,36 @@ public class ConstantFolder
 
 						ArrayList<InstructionHandle> handleList = new ArrayList<InstructionHandle>();
 
-						int lastPush = pushInstructionStack.pop().intValue();
+						try {
+							int lastPush = pushInstructionStack.pop().intValue();
 
-						System.out.println("Store block in instruction map:");
+							// Remove the necessary handles from stack and save them in instructionMap
+							// Also decrease
+							while (instrPointer >= lastPush)
+							{
+								InstructionHandle h = instructionStack.pop();
+								instrPointer--;
+								//System.out.println("\t"+h);
+								handleList.add(h);
+							}
+							
+							int index = store.getIndex();
 
-						// Remove the necessary handles from stack and save them in instructionMap
-						// Also decrease
-						while (instrPointer >= lastPush)
-						{
-							InstructionHandle h = instructionStack.pop();
-							instrPointer--;
-							System.out.println("\t"+h);
-							handleList.add(h);
+							Number value = constantStack.pop();
+
+							if (instructionMap.containsKey(index))
+								instructionMap.get(index).addAll(handleList);
+							else
+								instructionMap.put(index, handleList);
+
+							constantMap.put(index, value);
+						} catch (Exception e) {
+							// Something wrong ==> abort optimisation before something bad happens
+							return;
 						}
-						
-						int index = store.getIndex();
-
-						Number value = constantStack.pop();
-						
-						if (instructionMap.containsKey(index))
-							instructionMap.get(index).addAll(handleList);
-						else
-							instructionMap.put(index, handleList);
-
-						constantMap.put(index, value);
+						//System.out.println("Store block in instruction map:");
 					}
-					else if (remove && instr instanceof ArithmeticInstruction) // Perform calculation
+					else if (instr instanceof ArithmeticInstruction  && !constantStack.isEmpty()) // Perform calculation
 					{
 						ArithmeticInstruction arith = (ArithmeticInstruction) instr;
 
@@ -715,8 +728,11 @@ public class ConstantFolder
 						Object b;
 						if (constantStack.isEmpty())
 							b = new Object();
-						else
+						else if (!constantStack.isEmpty())
 							b = constantStack.pop();
+						else
+							// Something wrong ==> abort optimisation before something bad happens
+							return;
 						
 						// Remove index of last push operation (since it will be removed at the end)
 						pushInstructionStack.pop();
@@ -756,42 +772,60 @@ public class ConstantFolder
 						InstructionHandle newHandle = instList.insert(handle, newInstr);
 
 						instructionStack.push(handle);
-
+						instrPointer++;
 						//pushInstructionStack.push(instrPointer);
 
 						//System.out.println(instructionStack);				
-						instrPointer++;
+						
 						changed = true;
 						// Only perform one folding at a time. Break out of loop
 						break;
 
 					}
-					else if (isCmpInstruction(instr))
+					else if (isCmpInstruction(instr) && !constantStack.isEmpty())
 					{
 						// Get last two loaded constants from constantStack
-						System.out.println(constantStack);
+						//System.out.println(constantStack);
 						Object a = constantStack.pop();
 						Object b;
 						if (instr instanceof IFLE || instr instanceof IFLT || instr instanceof IFGE || instr instanceof IFGT || instr instanceof IFEQ || instr instanceof IFNE)
 							b = new Integer(0);
-						else
+						else if (!constantStack.isEmpty())
 							b = constantStack.pop();
+						else
+							// Something wrong ==> abort optimisation before something bad happens
+							return;
 
 						Integer result = (Integer) calc(instr, cpgen, a, b);
-						int index = cpgen.addInteger(((Integer)result).intValue());
-						Instruction newInstr = new LDC(index);
 
-						System.out.println("Insert " + newInstr + " before " + handle);
-						
-						// TODO: Commented out temporarily!!!
-						//InstructionHandle newHandle = instList.insert(handle, newInstr);
-						
-						//instructionStack.push(handle);
-						
+						if (instr instanceof IfInstruction)
+						{
+							IfInstruction branch = (IfInstruction) instr;
+							if (result == 1) // I result == 0: do not insert anything
+							{
+								// Jump!
+								BranchInstruction newInstr = new GOTO(branch.getTarget());
+								System.out.println("Insert " + newInstr + " before " + handle);
+								instList.insert(handle, newInstr);
+							}
+								
+						}
+						else // Just replace current handle with an iconst
+						{
+							// iconst can push integer constant of range [-1;5] on the stack
+							Instruction newInstr = new ICONST(result);
+							System.out.println("Insert " + newInstr + " before " + handle);
+							instList.insert(handle, newInstr);
+							constantStack.push(result);
+						}
+
+						//
+
 						// Remove index of last push operation (since it will be removed at the end)
 						pushInstructionStack.pop();
+						instructionStack.push(handle);
+						instrPointer++;
 
-						//instrPointer++;
 						changed = true;
 
 						// Only perform one folding at a time. Break out of loop
@@ -799,8 +833,6 @@ public class ConstantFolder
 					}
 				}
 			}
-			
-			//System.out.println("#instructions on stack: "+instrPointer);
 		}
 
 		// Perform instruction reduction step
@@ -811,8 +843,14 @@ public class ConstantFolder
 			cleanUpInstructionList(instructionMap, instList);
 			
 			// Give all instructions their position number (offset in byte stream), i.e., make the list ready to be dumped.
-			instList.setPositions(true);
-
+			try 
+			{
+				instList.setPositions(true);
+			}
+			catch(Exception e)
+			{
+				return;
+			}
 			// set max stack/local
 			methodGen.setMaxStack();
 			methodGen.setMaxLocals();
