@@ -1,0 +1,36 @@
+\documentclass[a4paper,12pt]{scrartcl}
+\linespread{1}
+% Packages
+\usepackage{graphicx}
+\usepackage[british]{babel}
+\usepackage{enumerate}
+\usepackage{url}
+\usepackage{setspace}
+\usepackage{todonotes}
+\usepackage{color}	
+\usepackage{subfig}
+\usepackage{array}
+\usepackage{fancybox}
+\usepackage{fancyref}
+\usepackage{float}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{listings}
+\lstset{
+   breaklines=true,
+   basicstyle=\ttfamily}
+
+\setkomafont{disposition}{\normalfont\bfseries}
+
+\begin{document}
+\input{titlepage}
+\clearpage
+\tableofcontents
+\clearpage
+\input{introduction}
+\input{classification}
+\input{description}
+\input{example}
+%\include{appendix}
+
+\end{document}

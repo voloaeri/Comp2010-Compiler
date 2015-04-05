@@ -1,0 +1,62 @@
+\section{Dynamic folding example}
+
+\textbf{Java code:}
+\begin{lstlisting}[language=Java]
+int a = 42;
+int b = (a + 764) * 3;
+a = 22;
+return b + 1234 - a; 
+\end{lstlisting}
+
+
+\newsavebox{\unoptimized}
+\begin{lrbox}{\unoptimized}
+\begin{lstlisting}[basicstyle=\small]
+0: bipush        42
+2: istore_1
+3: iload_1
+4: sipush        764
+7: iadd
+8: iconst_3
+9: imul
+10: istore_2
+11: bipush        22
+13: istore_1
+14: iload_2
+15: sipush        1234
+18: iadd
+19: iload_1
+20: isub
+21: ireturn
+\end{lstlisting}
+\end{lrbox}
+
+\newsavebox{\optimized}
+\begin{lrbox}{\optimized}
+\begin{lstlisting}[showlines=true, basicstyle=\small]
+0: ldc	#48		//int 3630
+21: ireturn
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\end{lstlisting}
+\end{lrbox}
+
+\begin{figure}[h!]
+	\centering
+	\subfloat[Unoptimized]{\usebox{\unoptimized}}
+	\hspace{0.5cm}\vline\hspace{0.5cm}
+	\subfloat[Optimized]{\usebox{\optimized}}
+	\caption{Unoptimized and optimized Java bytecode}
+\end{figure}
