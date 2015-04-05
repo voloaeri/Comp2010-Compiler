@@ -818,7 +818,7 @@ public class ConstantFolder
 
 						// Remove the necessary handles from stack and save them in instructionMap
 						// Also decrease instrPointer (since the instructionStack is shrinking)
-						while (instrPointer >= lastPush)
+						while (lastPush < instrPointer)
 						{
 							InstructionHandle h = instructionStack.pop();
 							instrPointer--;
@@ -829,16 +829,15 @@ public class ConstantFolder
 						// Get reference
 						int index = store.getIndex();
 
-						// Pop constant from constantStack and save it in constantMap (for later loads)
-						Number value = constantStack.pop();
-
-
 						if (instructionMap.containsKey(index))
 							// Reference does not yet exist...save the list ad ther reference's value
 							instructionMap.get(index).addAll(handleList);
 						else
 							// Reference exists (--> Dynamic Folding necessary). Add temporary instruction list to existing one
 							instructionMap.put(index, handleList);
+
+						// Pop constant from constantStack and save it in constantMap (for later loads)
+						Number value = constantStack.pop();
 
 						// Put/update constant in constantMap
 						constantMap.put(index, value);
@@ -858,23 +857,16 @@ public class ConstantFolder
 
 					ArithmeticInstruction arith = (ArithmeticInstruction) instr;
 
-					remove = false; // Found an atihmetic operation ==> stop removing
-
 					//System.out.println(constantStack);
 
 					// Get last two constants from constantStack
 					Object a = constantStack.pop();
 					
 					Object b;
-					if (constantStack.isEmpty()) // e.g. for an negation we only need one elemtn on the stack
+					if (constantStack.isEmpty()) // e.g. for an negation we only need one element on the stack
 						b = new Object();
 					else 
 						b = constantStack.pop();
-					
-					if (getOpType(instr) != OperationType.NEG)
-						// Remove index of last push operation (since it will be removed in the reduction step)
-						// Only do that if instr is not a negation (since then the related push operation is the top one)
-						pushInstrIndexStack.pop();
 
 					// Perform calculation
 					Number result = calc(arith, cpgen, a, b);
@@ -920,7 +912,12 @@ public class ConstantFolder
 					{
 						// Add result to instruction list
 						//System.out.println("Insert " + newInstr + " before " + handle);
-						InstructionHandle newHandle = instList.insert(handle, newInstr);
+						instList.insert(handle, newInstr);
+
+						if (getOpType(instr) != OperationType.NEG)
+							// Remove index of last push operation (since it will be removed in the reduction step)
+							// Only do that if instr is not a negation (since then the related push operation is the top one)
+							pushInstrIndexStack.pop();
 
 						// Add instr's handle to the instructionStack
 						instructionStack.push(handle);
@@ -977,7 +974,6 @@ public class ConstantFolder
 							//System.out.println("Insert " + newInstr + " before " + handle);
 							instList.insert(handle, newInstr);
 						}
-							
 					}
 					else // Just replace current handle with an iconst
 					{
