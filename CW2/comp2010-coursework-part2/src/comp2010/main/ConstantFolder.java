@@ -692,6 +692,69 @@ public class ConstantFolder
 		constantMap.clear();
 	}
 
+	private Instruction newPushInstruction(ConstantPoolGen cpgen, Number result, int type)
+	{
+		int index;
+		switch(type) 
+		{
+			case Constants.T_INT: {
+				int value = result.intValue();
+				// Add result to constant pool
+				if (value >= -1 && value <= 5) // -1 <= value <= 5, i.e. value is in [-1;5]
+					return new ICONST(result.intValue());
+				else if (value >= Byte.MIN_VALUE && value <= Byte.MAX_VALUE)
+					return new BIPUSH(result.byteValue());
+				else if (value >= Short.MIN_VALUE && value <= Short.MAX_VALUE)
+					return new SIPUSH(result.shortValue());
+				else
+				{
+					index = cpgen.addInteger(value);
+					// New instruction will be an LDC
+					return new LDC(index);
+				}
+			}
+			case Constants.T_FLOAT: {
+				float value = result.floatValue();
+				if (value == 0.0f || value == 1.0f || value == 2.0f)
+					return new FCONST(value);
+				else
+				{
+					// Add result to constant pool
+					index = cpgen.addFloat(value);
+					// New instruction will be an LDC
+					return new LDC(index);
+				}
+			}
+			case Constants.T_LONG: {
+				long value = result.longValue();
+				if (value == 0L || value == 1L)
+					return new LCONST(value);
+				else 
+				{
+					// Add result to constant pool
+					index = cpgen.addLong(value);			
+					// New instruction will be an LDC2_W
+					return new LDC2_W(index);
+				}
+			}
+			case Constants.T_DOUBLE: {
+				double value = result.doubleValue();
+				// Add result to constant pool
+				if (value == 1.0 || value == 0.0)
+					return new DCONST(value);
+				else
+				{
+					index = cpgen.addDouble(value);
+					// New instruction will be an LDC2_W
+					return new LDC2_W(index);
+				}
+			}
+			default:
+				return null;
+		}
+
+	}
+
 	// Perform simple, constant and dynamic folding on method
 	// It is being recursively invokes until method could not be further optimised
 	private void performFolding(ClassGen gen, ConstantPoolGen cpgen, Method method) 
@@ -902,38 +965,7 @@ public class ConstantFolder
 					constantStack.push(result);
 					
 					// Now we can build up our new instruction and inject it into the existing method code
-					int index;
-					Instruction newInstr;
-					switch(arith.getType(cpgen).getType()) 
-					{
-						case Constants.T_INT:
-							// Add result to constant pool
-							index = cpgen.addInteger(((Integer)result).intValue());
-							// New instruction will be an LDC
-							newInstr = new LDC(index);
-							break;
-						case Constants.T_FLOAT:
-							// Add result to constant pool
-							index = cpgen.addFloat(((Float)result).floatValue());
-							// New instruction will be an LDC
-							newInstr = new LDC(index);
-							break;
-						case Constants.T_LONG:
-							// Add result to constant pool
-							index = cpgen.addLong(((Long)result).longValue());			
-							// New instruction will be an LDC2_W
-							newInstr = new LDC2_W(index);
-							break;
-						case Constants.T_DOUBLE:
-							// Add result to constant pool
-							index = cpgen.addDouble(((Double)result).doubleValue());
-							// New instruction will be an LDC2_W
-							newInstr = new LDC2_W(index);
-							break;
-						default:
-							index = -1;
-							newInstr = null;
-					}
+					Instruction newInstr = newPushInstruction(cpgen, result, arith.getType(cpgen).getType());
 
 					if (newInstr != null)
 					{
