@@ -48,14 +48,34 @@ public class DynamicVariableFoldingTest
     @Test
     public void testMethodThree()
     {
-        assertEquals(9, dvf.methodThree());
+        assertEquals(6, dvf.methodThree());
     }
 
-    // @Test
-    // public void testMethodFour()
-    // {
-    //     assertEquals(1, dvf.methodFour());
-    // }
+    @Test
+    public void testMethodThreeOut()
+    {
+        dvf.methodThree();
+        assertEquals("8\n6\n", outContent.toString());
+    }
+
+    @Test
+    public void testMethodFour()  throws Exception
+    {
+        assertEquals(3, dvf.methodFour(0));
+    }
+
+    @Test(expected=Exception.class)
+    public void testMethodFourErr()  throws Exception
+    {
+        dvf.methodFour(4);
+    }
+
+    @Test
+    public void testMethodFourOut()  throws Exception
+    {
+        dvf.methodFour(-3);
+        assertEquals("Something went wrong\n", outContent.toString());
+    }
 
 
 }

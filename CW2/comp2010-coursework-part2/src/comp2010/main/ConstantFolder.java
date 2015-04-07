@@ -523,7 +523,7 @@ public class ConstantFolder
 
 	// This method cleans up the instruction list. It is possible that we have pushes and stores in the list
 	// with no related load. We ghet rid of them by deleting the particular handles from instList
-	private void cleanUpInstructionList(Map<Integer, ArrayList<InstructionHandle>> map, InstructionList instList)
+	private void cleanUpInstructionList(Map<Integer, ArrayList<InstructionHandle>> map, InstructionList instList, InstructionHandle newHandle)
 	{
 		// This list is needed to delete all unneeded instructions after the following loop.
 		// We could delete them in the loop as well, but in that we would tamper the list
@@ -535,7 +535,7 @@ public class ConstantFolder
 		{
 			// Get key (the reference to a variable)
 			int key = entry.getKey().intValue();
-
+			//System.out.println(entry);
 			// This flag indicates whether an instruction is relevant (and therefore gets removed at the end)
 			boolean remove = true;
 
@@ -588,19 +588,30 @@ public class ConstantFolder
 				}
 				catch (TargetLostException e)
 				{
+					//System.out.println("Clean Up: Target lost: "+handle);
 					// Is thrown if one of the deleted handles is still referenced by 
 					// a branch instruction.
 					InstructionHandle[] targets = e.getTargets();
 
-					// Delete all targeters of the reported targets
-					for(int i=0; i < targets.length; i++) {
-						targets[i].removeAllTargeters();
-						// InstructionTargeter[] targeters = targets[i].getTargeters();
-
-						// for(int j=0; j < targeters.length; j++)
-						// 	// Let instruction point to null.
-						// 	targeters[j].updateTarget(targets[i], null);
-       				}
+					for(int i=0; i < targets.length; i++) 
+					{
+						InstructionTargeter[] targeters = targets[i].getTargeters();
+	     
+			            if (newHandle != null)
+			            {
+			            	for(int j=0; j < targeters.length; j++)
+			            	{
+			            		//System.out.println("\tUpdate targeter "+targeters[j]+" with "+newHandle);
+			            		targeters[j].updateTarget(targets[i], newHandle);
+			            	}
+			            }
+			            else // no newInstr (should not happen)
+			            {
+			            	//System.out.println("\tRemove all targeters of "+targets[i]);
+							targets[i].removeAllTargeters();
+							//System.out.println("\tdone");
+			            }
+					}	
 				}
 			}
 
@@ -614,9 +625,10 @@ public class ConstantFolder
 	private void performReduction(Deque<InstructionHandle> instructionStack, 
 								  InstructionList instList, 
 								  Deque<Integer> pushInstrIndexStack, 
-								  int instrPointer)
+								  int instrPointer,
+								  InstructionHandle newHandle)
 	{
-		System.out.println(pushInstrIndexStack);
+		//System.out.println(pushInstrIndexStack);
 		// Get initial push instruction for this block (the last instruction that will be removed)
 		int lastPush = pushInstrIndexStack.pop().intValue();
 		
@@ -638,15 +650,27 @@ public class ConstantFolder
 			}
 			catch (TargetLostException e)
 			{
+				//System.out.println("Reduction: Target lost: "+h);
 				// Is thrown if one of the deleted handles is still referenced by 
 				// a branch instruction.
 				InstructionHandle[] targets = e.getTargets();
-				for(int i=0; i < targets.length; i++) {
-					targets[i].removeAllTargeters();
-					// InstructionTargeter[] targeters = targets[i].getTargeters();
-
-					// for(int j=0; j < targeters.length; j++)
-					// 	targeters[j].updateTarget(targets[i], null);
+				for(int i=0; i < targets.length; i++) 
+				{
+					InstructionTargeter[] targeters = targets[i].getTargeters();
+		            if (newHandle != null)
+		            {
+		            	for(int j=0; j < targeters.length; j++)
+		            	{
+		            		//System.out.println("\tUpdate targeter "+targeters[j]+" with "+newHandle);
+		            		targeters[j].updateTarget(targets[i], newHandle);
+		            	}
+		            }
+		            else // no newInstr (should not happen)
+		            {
+						//System.out.println("\tRemove all targeters of "+targets[i]);
+						targets[i].removeAllTargeters();
+						//System.out.println("\tdone");
+		            }
 				}	
 			}
 
@@ -718,6 +742,9 @@ public class ConstantFolder
 		int instrPointer = 0;
 		
 		ConstantPool cp = cpgen.getConstantPool();
+
+		// Initialize new instruction here since it is being used after the loop
+		InstructionHandle newHandle = null;
 
 		// Iterate over all instructions in instList
 		for (InstructionHandle handle : instList.getInstructionHandles()) 
@@ -812,13 +839,13 @@ public class ConstantFolder
 					ArrayList<InstructionHandle> handleList = new ArrayList<InstructionHandle>();
 
 					try {
-						System.out.print(pushInstrIndexStack);
+						//System.out.print(pushInstrIndexStack);
 						int lastPush = pushInstrIndexStack.pop().intValue();
-						System.out.println(" ---> "+pushInstrIndexStack);
+						//System.out.println(" ---> "+pushInstrIndexStack);
 
 						// Remove the necessary handles from stack and save them in instructionMap
 						// Also decrease instrPointer (since the instructionStack is shrinking)
-						while (lastPush < instrPointer)
+						while (lastPush <= instrPointer)
 						{
 							InstructionHandle h = instructionStack.pop();
 							instrPointer--;
@@ -912,7 +939,7 @@ public class ConstantFolder
 					{
 						// Add result to instruction list
 						//System.out.println("Insert " + newInstr + " before " + handle);
-						instList.insert(handle, newInstr);
+						newHandle = instList.insert(handle, newInstr);
 
 						if (getOpType(instr) != OperationType.NEG)
 							// Remove index of last push operation (since it will be removed in the reduction step)
@@ -972,7 +999,14 @@ public class ConstantFolder
 							// Replace current comparison by a direct GOTO instruction
 							BranchInstruction newInstr = new GOTO(branch.getTarget());
 							//System.out.println("Insert " + newInstr + " before " + handle);
-							instList.insert(handle, newInstr);
+							newHandle = instList.insert(handle, newInstr);
+							System.out.println("New handle: "+newHandle);
+						}
+						else
+						{
+							System.out.println("Result = 0");
+							newHandle = handle.getNext();
+							System.out.println("New handle: "+newHandle);
 						}
 					}
 					else // Just replace current handle with an iconst
@@ -981,7 +1015,8 @@ public class ConstantFolder
 						// iconst can push integer constant of range [-1;5] on the stack
 						Instruction newInstr = new ICONST(result);
 						//System.out.println("Insert " + newInstr + " before " + handle);
-						instList.insert(handle, newInstr);
+						newHandle = instList.insert(handle, newInstr);
+						System.out.println("New handle: "+newHandle);
 						constantStack.push(result);
 					}
 
@@ -1006,9 +1041,9 @@ public class ConstantFolder
 			// Optimisation is needed for that method.
 
 			// Remove unnecessary instructions from instList.
-			performReduction(instructionStack, instList, pushInstrIndexStack, instrPointer);
+			performReduction(instructionStack, instList, pushInstrIndexStack, instrPointer, newHandle);
 			// Clean up what is left
-			cleanUpInstructionList(instructionMap, instList);
+			cleanUpInstructionList(instructionMap, instList, newHandle);
 			
 			// Give all instructions their position number (offset in byte stream), i.e., make the list ready to be dumped.
 			try 
@@ -1044,15 +1079,15 @@ public class ConstantFolder
 
 		ConstantPoolGen cpgen = gen.getConstantPool();
 		// get the current constant pool
-		//ConstantPool cp = cpgen.getConstantPool();
+		ConstantPool cp = cpgen.getConstantPool();
 
 		Method[] methods = gen.getMethods();
 		for (Method m : methods)
 		{
 			// Iterate over every method object
-			//System.out.println(">>>>>> Optimize method: "+cp.getConstant(m.getNameIndex()));
+			System.out.println(">>>>>> Optimize method: "+cp.getConstant(m.getNameIndex()));
 			performFolding(gen, cpgen, m);
-			//System.out.println("<<<<<< Optimization done: "+cp.getConstant(m.getNameIndex()));
+			System.out.println("<<<<<< Optimization done: "+cp.getConstant(m.getNameIndex()));
 		}
 
 		// Do your optimization here

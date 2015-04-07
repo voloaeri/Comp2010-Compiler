@@ -26,8 +26,9 @@ public class DynamicVariableFolding {
 
         while (i < 10) //runs three times
         {
-            j = j + 2; 
-            i++;
+           System.out.println(i+1);
+           System.out.println(3+3);
+           break;
         }
 
         //i = 10
@@ -37,10 +38,28 @@ public class DynamicVariableFolding {
         //int z = j + -i;
         //z = -91
 
-        return j-i;
+        return j-i; // return 6
     }
 
     // public int methodFour() {
     //     return 1;
     // }
+
+    public int methodFour(int a) throws Exception {
+        float b=3.4f;
+        try
+        {
+            a = a+(int)b;
+            if (a<(int)b)
+                throw new NumberFormatException("Something went wrong");
+            else if (a>(int)b)
+                throw new Exception();
+        } 
+        catch(NumberFormatException e)
+        {
+            System.out.println(e.getLocalizedMessage());
+        }
+
+        return a;
+    }
 }
