@@ -1,3 +1,11 @@
 \section{Introduction}
 
-This algorithm uses five principle data structures and a recursive method to reduce the given bytecode as much as possible. In brief overview, a reduction is found, the instructions are changed, and the the process repeats until no more changes and can occur and hence no further optimization is possible.  It’s important to note that all three simple, constant, and dynamic folding occur within the same method performFolding.  This report is organized by the descriptions of the data structures and then explanations of the crucial methods. This algorithm uses five principle data structures and a recursive method to reduce the given bytecode as much as possible. In brief overview, a reduction is found, the instructions are changed, and the the process repeats until no more changes and can occur and hence no further optimization is possible.  It’s important to note that all three simple, constant, and dynamic folding occur within the same method performFolding.  This report is organized by the descriptions of the data structures and then explanations of the crucial methods. 
+The \texttt{optimize} method is called and within it a new \texttt{ClassGen} object is created. Then the \texttt{ConstantPool} and the unoptimized methods are retrieved from the \texttt{ClassGen} object. Then, \texttt{optimize} iterates over these methods and calls \texttt{performFolding} for each one. Once there are no more methods remaining, the optimized code is generated. The general process of this optimisation is depicted in figure \ref{fig:overview}.
+
+\begin{figure}[h]
+\includegraphics{figures/optimise_overview}
+\caption{The general process of optimisation}
+\label{fig:overview}
+\end{figure}
+
+In the following section \ref{sec:classification}, we will provide further explanation on how we classified the different bytecode instruction types. It is followed by a detailed description of out most important functions (section \ref{sec:description}). The report closes with an example showing the difference between unoptimized and unoptimized code (section \ref{sec:example}).

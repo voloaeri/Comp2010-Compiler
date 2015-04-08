@@ -1,6 +1,10 @@
 \section{Dynamic folding example}
+\label{sec:example}
 
-\textbf{Java code:}
+The following example illustrates how well our optimization performs. It implies dynamic and constant folding.\\
+
+Given the following Java code:
+ 
 \begin{lstlisting}[language=Java]
 int a = 42;
 int b = (a + 764) * 3;
@@ -8,6 +12,7 @@ a = 22;
 return b + 1234 - a; 
 \end{lstlisting}
 
+Our optimization algorithm is able to perform all calculations at compile time and replaces almost all of the instructions of the unoptimized code with a single push instruction:
 
 \newsavebox{\unoptimized}
 \begin{lrbox}{\unoptimized}
@@ -34,7 +39,7 @@ return b + 1234 - a;
 \newsavebox{\optimized}
 \begin{lrbox}{\optimized}
 \begin{lstlisting}[showlines=true, basicstyle=\small]
-0: ldc	#48		//int 3630
+0: sipush	3630
 21: ireturn
 
 

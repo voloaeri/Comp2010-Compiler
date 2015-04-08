@@ -1,7 +1,18 @@
 \section{Implementation description}
+\label{sec:description}
 
-\subsection{Data structures}
-We used five major data structures to always keep track of the algorithm's and method code's state:
+\subsection{\texttt{optimize()}}
+
+\textbf{Brief: }Calls \texttt{performFolding} for every method.\\
+
+It iterates over all methods and calls \texttt{performFolding}, passing the current method, the \texttt{ConstantPoolGen} and the \texttt{ClassGen} object. After the optimization is done for all methods, the optimized byte code is generated.
+
+\subsection{\texttt{performFolding(ClassGen gen, ConstantPoolGen cpgen, Method method)}}
+\label{subsec:performfolding}
+\textbf{Brief: }Performs simple, constant and dynamic folding on method \texttt{m}, invoking itself recursively until no further optimization is possible. \\
+
+\subsubsection{Data Structures}
+It uses five major data structures to always keep track of the algorithm's and method code's state:
 
 \begin{itemize}
 \item \textbf{\texttt{constantStack}}: Simulates the constant stack and contains only the most recent values.
@@ -11,7 +22,7 @@ We used five major data structures to always keep track of the algorithm's and m
 \item \textbf{\texttt{constantMap}}: When a store instruction is read, the topmost constant is popped from the \texttt{\texttt{constantStack}} and stored in a local variable table. This \texttt{constantMap} simulates that table, so that we always have access to the most recent value of a variable.
 \end{itemize}
 
-\subsubsection{Other variables and data structures}
+\subsubsection{Other Variables and Data Structures}
 \begin{itemize}
 \item \textbf{\texttt{methodCode}}: Code of the method, containing a header and the \texttt{instList}.
 \item \textbf{\texttt{instList}}: List consisting of references to all instructions (\texttt{InstructionHandles}) in the method's code
@@ -20,86 +31,63 @@ We used five major data structures to always keep track of the algorithm's and m
 \item \textbf{\texttt{instrPointer}}: Indicates the number of instructions on the \texttt{instructionStack}. Incremented only when an instruction is added and decremented when instructions are popped from the stack.
 \end{itemize}
 
-\subsection{Function description}
+\subsubsection{Code Description}
+The \texttt{performFolding} method does all three types of folding: simple, constant, and dynamic. It first retrieves the method's code from the method object and then receives all instructions as a list (\texttt{instList}). Then it iterates over the instruction list using the instruction \texttt{handle} (pointer to specific instruction in \texttt{instList}). Each handle is checked to see if it is a valid instruction - if it is not, then the instruction is ignored and the next handle is addressed. The algorithm determines an instruction’s type by making use of Java's \texttt{instanceof} operator.
 
-\subsubsection{\texttt{optimize()}}
+When the loop is finished or has been interrupted by an optimization, the \texttt{changed} flag is checked. If \texttt{changed} is \texttt{true}, the actual reduction step is performed (\texttt{performReduction}, subsection \ref{subsec:performreduction}), followed by a clean up (\texttt{cleanUpInstructionList}, subsection \ref{subsec:cleanup}) of the \texttt{instList}. The latter is necessary to get rid of store-related instructions that do not have an appropriate load and are therefore useless. After the clean up, a new method is created which replaces the current one, and \texttt{performFolding} is invoked with this new method (i.e. the optimized code of the original method) as actual parameter.
 
-\textbf{Brief: }Calls \texttt{performFolding} for every method.\\
+As explained before, it checks whether each instruction is of type Push (direct/indirect), Conversion, Store, Arithmetic Operation or Comparison (see section \ref{sec:classification} for further explanation).
 
-It iterates over all methods and calls \texttt{performFolding}, passing the current method, the \texttt{ConstantPoolGen} and the \texttt{ClassGen} object. After the optimization is done for all methods, the optimized byte code is generated.
+\paragraph{Push instructions.}
+First, the instruction is pushed to the \texttt{instructionStack}, and the loaded constant is pushed to the \texttt{constantStack}. The flag \texttt{remove} is also set to \texttt{true} which indicates that all following instructions must be taken into account.     
+In the next iteration, if \texttt{remove} is set to \texttt{true}, it checks the next instruction. If the instruction is not of type Push, it executes specific code according to the instruction type.
 
-\subsubsection{\texttt{performFolding(ClassGen gen, ConstantPoolGen cpgen, Method method)}}
+It is worth mentioning, that we distinguish between \textit{direct} and \textit{indirect} push operations. Direct push instructions immediately push constants to the stack. Indirect push instructions first load the constant from the local variable table and then push it tpo the constant stack. The only indirect push instructions are those of type \texttt{load}.
 
-\textbf{Brief: }Performs simple, constant and dynamic folding on method \texttt{m}, invoking itself recursively until no further optimization is possible. \\
-
-
-The \texttt{performFolding} method does all three types of optimizations, simple, constant, and dynamic. It gets the code from the method and then receives all of instructions as a list (\texttt{instList}). It iterates over the instruction list using the instruction \texttt{handle} (pointer to specific instruction in \texttt{instList}). Each handle is checked to see if it is a valid instruction - if it is not, then the instruction is ignored and the next handle is addressed. The algorithm determines an instruction’s type by making use of Java's \texttt{instanceof} operator.
-
-When the loop is finished or has been interrupted by an optimization, the \texttt{changed} flag is checked. If \texttt{changed} is \texttt{true}, the actual reduction step is performed (\texttt{performReduction}), followed by a clean up (\texttt{cleanUpInstructionList}) of the \texttt{instList}. The latter is necessary to get rid of store-related instructions that do not have an appropriate load and are therefore useless. After the clean up, a new method is created which replaces the current one, and \texttt{performFolding} is invoked with this new method (i.e. the optimized code of the original method) as actual parameter. 
-
-
-\missingfigure{Control flow for method \texttt{performFolding(...)}}
-%\begin{figure}
-%
-%\caption{Control flow for method \texttt{performFolding(...)}
-%\end{figure}
-
-\paragraph{Direct push instructions.}
-First, the instruction is pushed to the \texttt{instructionStack}, and the loaded constant is pushed to the \texttt{constantStack}. The flag \texttt{remove} is also set to \texttt{true} which indicates that all following instructions must be checked.     
-In the next iteration, if \texttt{remove} is set to \texttt{true}, it checks the next instruction not of the type push after first push, or a series of sequential push operations, and executes specific code according to the instruction type.
-
-\missingfigure{Control flow for direct push instructions}
-%\begin{figure}
-%
-%\caption{Control flow for direct push instructions}
-%\end{figure}
-
-\paragraph{Indirect push instruction (\texttt{load}).}
-The \texttt{load} instruction is classified as an indirect push operation and therefore goes through the same steps as if it were a direct push operation. They are not handled in the same \texttt{if}-block because the way of getting the constant from a load instruction differs from the way of getting it from direct push operations. The reason for this is, that first the constant must be loaded from the constant pool and then be pushed to the stack.
-
-\missingfigure{Control flow for indirect push instructions}
-%\begin{figure}
-%
-%\caption{Control flow for indirect push operations}
-%\end{figure}
+\begin{figure}[h!]
+\centering
+\includegraphics[scale=0.7]{figures/push}
+\caption{Control flow for push instructions}
+\end{figure}
 
 \paragraph{Store instruction.}
-Firstly, the instruction’s \texttt{handle} is added to the \texttt{instructionStack} and a temporary handle list (\texttt{instructionHandles}) is defined. Then, a variable called count is created and initialized with the index of the last push operation. Immediately following is a while loop that iterates over the \texttt{instructionStack}, pops the topmost instruction and adds it to \texttt{instructionHandles}. Finally, \texttt{instrPointer} is decreased. This repeats until all handles that have been added since the last push operation are popped from the \texttt{instructionStack}. In this way, the algorithm can even consider conversions which are placed between the last push and the current store instruction. Hence, it pops all necessary handles for the storing. Once the loop ends, it stores the value in the \texttt{constantMap}, where the key is the \texttt{store} instruction’s reference. It also saves the \texttt{handleList} in the \texttt{instructionMap}, again using the reference index as key. In case of dynamic folding, the temporary handle is added to the existing array in instruction map. In case anything goes wrong, the containers will be cleared and remove is set to false, meaning that the pattern matching process will start from new in the next iteration.
+Firstly, the instruction’s \texttt{handle} is added to the \texttt{instructionStack} and a temporary handle list (\texttt{instructionHandles}) is defined. Then, a variable called \texttt{lastPush} is created and initialized with the index of the last push operation, i.e. the topmost element of the \texttt{pushInstrIndexStack}. Then a while loop iterates over the \texttt{instructionStack} and in each iterations pops the topmost instruction and adds it to \texttt{instructionHandles}. Finally, \texttt{instrPointer} is decreased. This repeats until all handles that have been added since the last push operation are popped from the \texttt{instructionStack}. In this way, the algorithm can even consider conversion instructions which are placed between the last push and the current store instruction. Hence, it pops all handles that are necessary for this store instruction \footnote{This might not even be necessary. However, due to lack of time, we kept it in our implementation, because it works fine.}. Once the loop has ended, it stores the value in the \texttt{constantMap}, where the key is the \texttt{store} instruction’s reference index. It also saves the \texttt{handleList} in the \texttt{instructionMap}, again using the reference index as key. In case of dynamic folding, the \texttt{handleList} is added to the existing one in \texttt{instructionMap}. In case anything goes wrong, the containers will be cleared and remove is set to false, meaning that the pattern matching process will start from new in the next iteration.
 
-\missingfigure{Control flow for store instructions}
-%\begin{figure}
-%
-%\caption{Control flow for store operations}
-%\end{figure}
+\begin{figure}[h!]
+\centering
+\includegraphics[scale=0.5]{figures/store}
+\caption{Control flow for store operations}
+\end{figure}
 
 \paragraph{Conversion instructions.}
-The value is taken from the instruction and converted to the desired type.  It is then pushed to the \texttt{constantStack} and the handle is pushed to the \texttt{instructionStack}. Finally, the \texttt{instrPointer} is incremented. 
+The topmost constant on the \texttt{constantStack} is popped and converted to the desired type. It is then pushed back to the \texttt{constantStack} and the particular instruction handle is pushed to the \texttt{instructionStack}. Finally, the \texttt{instrPointer} is incremented. 
 
-\missingfigure{Control flow for conversion instructions}
-%\begin{figure}
-%
-%\caption{Control flow for conversion operations}
-%\end{figure}
+\begin{figure}[h!]
+\centering
+\includegraphics[scale=0.6]{figures/conversion}
+\caption{Control flow for conversion operations}
+\end{figure}
 
 \paragraph{Arithmetic instructions.}
-If it is an arithmetic instruction then the two topmost constants are popped from the \texttt{constantStack}. The desired calculation is performed and the result is pushed to the \texttt{constantStack} and also added to the general constant pool. Next, a new \texttt{ldc}-instruction is inserted within the instruction list directly before the current handle. If the instruction is not a negation, the topmost push instruction index is popped from \texttt{pushInstrIndexStack}. This is because it is one of two push operations involved in the arithmetic operation and therefore the removal should not stop before reaching the first push involved. Then the instruction is pushed to the \texttt{instructionStack} and the \texttt{instrPointer} is incremented by one and the changed flag is set to true. Finally, the function breaks out of the loop, since the algorithm only performs one calculation at a time.
+If it is an arithmetic instruction, the two topmost constants are popped from the \texttt{constantStack}. In case of a negation, only the one topmost constant is popped. The desired calculation is then performed and the result is pushed to the \texttt{constantStack} and, is necessary, added to the general constant pool. Next, a new push instruction is inserted within the instruction list directly before the current handle. The type of this instruction depends on the size of the variable. In that way, the algorithm does not add constants to the constant pool when they can be also pushed directly (using \texttt{sipush, bipush, i/l/d/fconst}).\\
+If the instruction is not a negation, the topmost push instruction index is popped from \texttt{pushInstrIndexStack}. This is because two push operations are involved in the arithmetic operation and therefore the removal should not stop when reaching the last, but when reaching the second last push instruction on the \texttt{pushInstrIndexStack}. After that, the instruction is pushed to the \texttt{instructionStack} and the \texttt{instrPointer} is incremented by one. Also, the \texttt{changed} flag is set to \texttt{true}. Finally, the function breaks out of the loop, since the algorithm only performs one optimization at a time.
 
-\missingfigure{Control flow for arithmetic instructions}
-%\begin{figure}
-%
-%\caption{Control flow for arithmetic operations}
-%\end{figure}
+\begin{figure}[h!]
+\includegraphics[scale=0.6]{figures/arithmetic}
+\caption{Control flow for arithmetic operations}
+\end{figure}
 
 \paragraph{Comparison instructions.}
-If the instruction’s type is a comparison, pop the topmost constants from the stack before the comparison is performed. Since particularly if-instructions imply a jump if the comparison evaluates to \texttt{true} the algorithm checks in that particular case if the result is equal to 1, i.e. \texttt{true}. If this is the case, a new \texttt{goto} instruction is inserted into the \texttt{instList} before the current handle and the instruction is pushed to the \texttt{instructionStack}. This means nothing more than: the current instruction is replaced by a \texttt{goto} instruction. If the result is equal to 0, no new instruction is added and the current one will simply be removed. If the instruction is not an if-instruction, the current \texttt{handle} is replaced by an \texttt{iconst} instruction. Afterwards, the \texttt{instrPointer} is incremented and the \texttt{changed} flag is set to \texttt{true}. Finally, the function breaks out of the loop.
+If the instruction’s type is a comparison, the topmost constants are popped from the stack before the comparison is performed. Since particularly if-instructions imply a jump if the comparison evaluates to \texttt{true}, in that particular case the algorithm checks if the result is equal to 1, i.e. \texttt{true}. If this is the case, a new \texttt{goto} instruction is inserted into the \texttt{instList} before the current handle and the instruction is pushed to the \texttt{instructionStack}. This means nothing more than: the current instruction is replaced by a \texttt{goto} instruction. If the result is equal to 0, no new instruction is added and the current one will simply be removed.\\
+If the instruction is not an if-instruction, the current \texttt{handle} is replaced by an \texttt{iconst} instruction. Afterwards, the \texttt{instrPointer} is incremented and the \texttt{changed} flag is set to \texttt{true}. Finally, the function breaks out of the loop, since the algorithm only performs one optimization at a time.
 
-\missingfigure{Control flow for comparison instructions}
-%\begin{figure}
-%
-%\caption{Control flow for comparison operations}
-%\end{figure}
+\begin{figure}[h!]
+\centering
+\includegraphics[scale=0.6]{figures/comparison}
+\caption{Control flow for comparison operations}
+\end{figure}
 
-\subsubsection{\texttt{performReduction(\\
+\subsection{\texttt{performReduction(\\
 \hspace{2cm}Deque<InstructionHandle> instructionStack, \\
 \hspace{2cm}InstructionList instList, \\
 \hspace{2cm}Deque<Integer> pushInstrIndexStack, \\
@@ -107,13 +95,15 @@ If the instruction’s type is a comparison, pop the topmost constants from the 
 
 \textbf{Brief: }Removes all instructions that are not needed any more once the optimization was successful. \\
 
-This method deletes all instructions in the \texttt{instList} that are on the \texttt{instructionStack} between the last push and the top. If one of the deleted handles is still referenced by a branch instruction, this instruction is being updated and the error therefore handled accordingly. 
+This method deletes all instructions in the \texttt{instList} that are on the \texttt{instructionStack} between the last push and the top. If one of the deleted handles is still targeted by branch instructions, their targets are set to the parameter \texttt{newHandle} and the \texttt{TargetLostException} therefore handled accordingly.
 
-\subsubsection{\texttt{cleanUpInstructionList(\\
+\subsection{\texttt{cleanUpInstructionList(\\
 \hspace{2cm}Map<Integer,ArrayList<InstructionHandle> > map,\\
-\hspace{2cm}InstructionList instList)}}
+\hspace{2cm}InstructionList instList,\\
+\hspace{2cm}InstructionHandle newHandle)}}
 
 \textbf{Brief: }Removes all instructions that are not needed any more once the optimization was successful. \\
 
-This deletes all unneeded instructions from the instruction list. This is necessary to get rid of store related instruction that do not have an appropriate load and are therefore not needed any more. 
-First, a list is defined which will store all the entries that will be removed (\texttt{removeEntries}). Then the algorithm iterates over all entries in the \texttt{instructionMap} and checks whether the current \texttt{instList} contains a load with the same reference as the current \texttt{entry}’s key. If not, the \texttt{entry} is stored in \texttt{removeEntries} for later removal.
+This deletes all unneeded instructions from the instruction list. This is necessary to get rid of store related instructions that do not have an appropriate load and are therefore not needed any more. \\
+First, a list is defined which will store all the entries that will be removed (\texttt{removeEntries}). Then the algorithm iterates over all entries in the \texttt{instructionMap} and checks whether the current \texttt{instList} contains a load with the same reference as the current \texttt{entry}’s key. If not, the \texttt{entry} is stored in \texttt{removeEntries} for later removal.\\
+If one of the deleted handles is still targeted by branch instructions, their targets are set to the parameter \texttt{newHandle} and the \texttt{TargetLostException} therefore handled accordingly.

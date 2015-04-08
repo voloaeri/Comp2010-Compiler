@@ -1,1 +1,16 @@
 \section{Classification of instruction types}
+\label{sec:classification}
+
+In order to distinguish between the different bytecode instructions, we classified the most important ones. Since the scope of this coursework only included arithmetic and logic operations, only the data types \texttt{int, long, float} and \texttt{double} are considered. We decided to have five different classes of instructions: Push, Conversion, Store, Arithmetic Operation and Comparison.
+
+
+
+\begin{itemize}
+\item \textbf{Push}: Instructions that push constants onto the local constant stack\\
+			(\texttt{sipush, bipush, i/f/l/dload, ldc, ldc\_w, ldc2\_w, i/f/l/dconst}).
+\item \textbf{Conversion}: Instructions that convert the top most constant of the constant stack into a different type (\texttt{x2y} where $x,y \in \{i,l,d,f\}$ and $x \neq y$).
+\item \textbf{Store}: Instructions that pop a constant from the stack and store it in the local variable table (\texttt{i/f/l/dstore\_x} where $x \in [0,3]$)
+\item \textbf{Arithmetic Op.}: Operation that performs an arithmetic or logical calculation\\
+			(\texttt{i/l/f/dadd/sub/mul/div/rem/neg, i/lshl, i/lshr, iushr, i/lor, i/land, i/lxor}).
+\item \textbf{Comparison}: Instructions that perform a comparison and either push the result on the stack or jump to a certain destination (\texttt{d/fcmpg, d/fcmpl, lcmp, ifne, ifle, iflt, ifge, ifgt, ifeq, if\_icmpeq, if\_icmpne, if\_icmplt, if\_icmpge, if\_icmpgt, ic\_icmple}).
+\end{itemize}
