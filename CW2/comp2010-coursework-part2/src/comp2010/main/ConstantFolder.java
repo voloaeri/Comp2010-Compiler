@@ -1032,13 +1032,13 @@ public class ConstantFolder
 							BranchInstruction newInstr = new GOTO(branch.getTarget());
 							//System.out.println("Insert " + newInstr + " before " + handle);
 							newHandle = instList.insert(handle, newInstr);
-							System.out.println("New handle: "+newHandle);
+							//System.out.println("New handle: "+newHandle);
 						}
 						else
 						{
-							System.out.println("Result = 0");
+							//System.out.println("Result = 0");
 							newHandle = handle.getNext();
-							System.out.println("New handle: "+newHandle);
+							//System.out.println("New handle: "+newHandle);
 						}
 					}
 					else // Just replace current handle with an iconst
@@ -1048,7 +1048,7 @@ public class ConstantFolder
 						Instruction newInstr = new ICONST(result);
 						//System.out.println("Insert " + newInstr + " before " + handle);
 						newHandle = instList.insert(handle, newInstr);
-						System.out.println("New handle: "+newHandle);
+						//System.out.println("New handle: "+newHandle);
 						constantStack.push(result);
 					}
 
@@ -1086,7 +1086,7 @@ public class ConstantFolder
 			{
 				// If this fails, we might not want to overwrite our current method.
 				// So just stop here and break out of function.
-				System.out.println("Optimisation not successful");
+				System.out.println("Optimisation not successful. Abort");
 				return;
 			}
 
@@ -1117,9 +1117,9 @@ public class ConstantFolder
 		for (Method m : methods)
 		{
 			// Iterate over every method object
-			System.out.println(">>>>>> Optimize method: "+cp.getConstant(m.getNameIndex()));
+			//System.out.println(">>>>>> Optimize method: "+cp.getConstant(m.getNameIndex()));
 			performFolding(gen, cpgen, m);
-			System.out.println("<<<<<< Optimization done: "+cp.getConstant(m.getNameIndex()));
+			//System.out.println("<<<<<< Optimization done: "+cp.getConstant(m.getNameIndex()));
 		}
 
 		// Do your optimization here
