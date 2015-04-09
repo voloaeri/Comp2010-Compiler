@@ -16,7 +16,7 @@ Our optimization algorithm is able to perform all calculations at compile time a
 
 \newsavebox{\unoptimized}
 \begin{lrbox}{\unoptimized}
-\begin{lstlisting}[basicstyle=\small]
+\begin{lstlisting}
 0: bipush        42
 2: istore_1
 3: iload_1
@@ -38,7 +38,7 @@ Our optimization algorithm is able to perform all calculations at compile time a
 
 \newsavebox{\optimized}
 \begin{lrbox}{\optimized}
-\begin{lstlisting}[showlines=true, basicstyle=\small]
+\begin{lstlisting}[showlines=true]
 0: sipush	3630
 21: ireturn
 

@@ -2,10 +2,15 @@
 \label{sec:description}
 
 \subsection{\texttt{optimize()}}
-
+\begin{figure}[h!]
+\centering
+\includegraphics[scale=0.6]{figures/overview}
+\caption{The control flow for \texttt{optimize}}
+\label{fig:overview}
+\end{figure}
 \textbf{Brief: }Calls \texttt{performFolding} for every method.\\
 
-It iterates over all methods and calls \texttt{performFolding}, passing the current method, the \texttt{ConstantPoolGen} and the \texttt{ClassGen} object. After the optimization is done for all methods, the optimized byte code is generated.
+First it a new \texttt{ClassGen} object is created from which the \texttt{ConstantPool} and the unoptimized methods are retrieved. Then,  a loop iterates over these methods and calls \texttt{performFolding} for each one,  passing the current method, the \texttt{ConstantPoolGen} and the \texttt{ClassGen} object. Once there are no more methods remaining, the optimized code is generated.
 
 \subsection{\texttt{performFolding(ClassGen gen, ConstantPoolGen cpgen, Method method)}}
 \label{subsec:performfolding}
@@ -37,7 +42,7 @@ The \texttt{performFolding} method does all three types of folding: simple, cons
 When the loop is finished or has been interrupted by an optimization, the \texttt{changed} flag is checked. If \texttt{changed} is \texttt{true}, the actual reduction step is performed (\texttt{performReduction}, subsection \ref{subsec:performreduction}), followed by a clean up (\texttt{cleanUpInstructionList}, subsection \ref{subsec:cleanup}) of the \texttt{instList}. The latter is necessary to get rid of store-related instructions that do not have an appropriate load and are therefore useless. After the clean up, a new method is created which replaces the current one, and \texttt{performFolding} is invoked with this new method (i.e. the optimized code of the original method) as actual parameter.
 
 As explained before, it checks whether each instruction is of type Push (direct/indirect), Conversion, Store, Arithmetic Operation or Comparison (see section \ref{sec:classification} for further explanation).
-\clearpage
+
 \paragraph{Push instructions.}
 \begin{figure}[h!]
 \centering
@@ -96,7 +101,7 @@ If the instruction is not an if-instruction, the current \texttt{handle} is repl
 \textbf{Brief: }Removes all instructions that are not needed any more once the optimization was successful. \\
 
 This method deletes all instructions in the \texttt{instList} that are on the \texttt{instructionStack} between the last push and the top. If one of the deleted handles is still targeted by branch instructions, their targets are set to the parameter \texttt{newHandle} and the \texttt{TargetLostException} therefore handled accordingly.
-
+%\clearpage
 \subsection{\texttt{cleanUpInstructionList(\\
 \hspace{2cm}Map<Integer,ArrayList<InstructionHandle> > map,\\
 \hspace{2cm}InstructionList instList,\\
