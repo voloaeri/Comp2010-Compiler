@@ -49,8 +49,6 @@ In the next iteration, if \texttt{remove} is set to \texttt{true}, it checks the
 
 It is worth mentioning, that we distinguish between \textit{direct} and \textit{indirect} push operations. Direct push instructions immediately push constants to the stack. Indirect push instructions first load the constant from the local variable table and then push it tpo the constant stack. The only indirect push instructions are those of type \texttt{load}.
 
-
-
 \paragraph{Store instruction.}
 \begin{figure}[h!]
 \centering
@@ -60,7 +58,6 @@ It is worth mentioning, that we distinguish between \textit{direct} and \textit{
 
 Firstly, the instruction’s \texttt{handle} is added to the \texttt{instructionStack} and a temporary handle list (\texttt{instructionHandles}) is defined. Then, a variable called \texttt{lastPush} is created and initialized with the index of the last push operation, i.e. the topmost element of the \texttt{pushInstrIndexStack}. Then a while loop iterates over the \texttt{instructionStack} and in each iterations pops the topmost instruction and adds it to \texttt{instructionHandles}. Finally, \texttt{instrPointer} is decreased. This repeats until all handles that have been added since the last push operation are popped from the \texttt{instructionStack}. 
 In this way, the algorithm can even consider conversion instructions which are placed between the last push and the current store instruction. Hence, it pops all handles that are necessary for this store instruction \footnote{This might not even be necessary. However, due to lack of time, we kept it in our implementation, because it works fine.}. Once the loop has ended, it stores the value in the \texttt{constantMap}, where the key is the \texttt{store} instruction’s reference index. It also saves the \texttt{handleList} in the \texttt{instructionMap}, again using the reference index as key. In case of dynamic folding, the \texttt{handleList} is added to the existing one in \texttt{instructionMap}. In case anything goes wrong, the containers will be cleared and remove is set to false, meaning that the pattern matching process will start from new in the next iteration.
-
 
 \paragraph{Conversion instructions.}
 \begin{figure}[h!]
